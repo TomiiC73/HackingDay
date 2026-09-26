@@ -1,0 +1,168 @@
+/*
+ * HackerBank - login "passwordless / biometrico" (lado del cliente).
+ *
+ * Este script implementa el flujo passwordless de HackerBank. La idea de
+ * marketing: "tu clave nunca viaja en claro, viaja ofuscada; solo tu
+ * dispositivo la puede usar". La huella/rostro que ves en pantalla es
+ * cosmetica: al confirmarla, el navegador baja tu clave de backup, la
+ * des-ofusca y firma un challenge del servidor.
+ *
+ * >>> NOTA PARA QUIEN AUDITA ESTE CODIGO (CTF Hacking Day) <<<
+ * Todo esto esta MAL a proposito. Fijate:
+ *   - La clave PRIVADA se baja por la red desde /auth/keys/<user_id>.
+ *   - Solo esta "ofuscada" con XOR+base64, y la clave del XOR esta aca abajo,
+ *     a la vista (OBFUSCATION_KEY). Ofuscar no es cifrar.
+ * En FIDO2/WebAuthn real la clave privada vive en el TPM/Secure Enclave del
+ * dispositivo y JAMAS sale de ahi: al servidor solo llega la clave publica y,
+ * en cada login, una firma. No hay ninguna clave privada que bajar.
+ */
+
+// VULN-2: la misma clave que usa el servidor para "ofuscar" la privada, aca
+// visible en el frontend. Con esto se revierte toda la ofuscacion.
+const OBFUSCATION_KEY = "hb_backup_key_2026";
+
+
+// ---------------------------------------------------------------------------
+// Helpers base64 / bytes
+// ---------------------------------------------------------------------------
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToStr(bytes) {
+  return new TextDecoder().decode(bytes);
+}
+
+function xorBytes(bytes, keyStr) {
+  const key = new TextEncoder().encode(keyStr);
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ key[i % key.length];
+  return out;
+}
+
+function bufToHex(buffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+
+// ---------------------------------------------------------------------------
+// Des-ofuscacion de la clave privada
+// Revierte lo que hace el servidor: base64( XOR( base64(PEM), OBFUSCATION_KEY ) )
+// ---------------------------------------------------------------------------
+function deobfuscatePrivateKey(obfuscated) {
+  const xored = b64ToBytes(obfuscated);          // deshago el base64 exterior
+  const innerB64Bytes = xorBytes(xored, OBFUSCATION_KEY);  // deshago el XOR
+  const innerB64 = bytesToStr(innerB64Bytes);    // esto es base64(PEM)
+  const pemBytes = b64ToBytes(innerB64);         // deshago el base64 interior
+  return bytesToStr(pemBytes);                   // PEM de la clave privada
+}
+
+
+// ---------------------------------------------------------------------------
+// Firma ECDSA P-256 del challenge con WebCrypto
+// ---------------------------------------------------------------------------
+function pemToPkcs8Der(pem) {
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s+/g, "");
+  return b64ToBytes(body);
+}
+
+async function signChallenge(privatePem, challenge) {
+  const der = pemToPkcs8Der(privatePem);
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    der,
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"]
+  );
+  // WebCrypto devuelve la firma en formato raw r||s (64 bytes), no DER.
+  const sigBuf = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    new TextEncoder().encode(challenge)
+  );
+  return bufToHex(sigBuf);
+}
+
+
+// ---------------------------------------------------------------------------
+// Flujo completo: challenge -> (bajar y des-ofuscar clave) -> firmar -> verify
+// ---------------------------------------------------------------------------
+async function passwordlessLogin(username) {
+  // 1) Pedir un challenge fresco. La respuesta trae tambien nuestro user_id.
+  const chRes = await fetch("/auth/challenge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+  const chData = await chRes.json();
+  if (!chData.ok) throw new Error(chData.error || "No se pudo iniciar el login.");
+
+  // 2) Bajar la clave privada "de backup" del usuario y des-ofuscarla.
+  const keyRes = await fetch(`/auth/keys/${chData.user_id}`);
+  const keyData = await keyRes.json();
+  if (!keyData.ok) throw new Error(keyData.error || "No se pudo recuperar la clave.");
+  const privatePem = deobfuscatePrivateKey(keyData.private_key_obfuscated);
+
+  // 3) Firmar el challenge con la clave privada.
+  const signature = await signChallenge(privatePem, chData.challenge);
+
+  // 4) Enviar la firma para que el servidor la verifique con la clave publica.
+  const vRes = await fetch("/auth/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, challenge: chData.challenge, signature }),
+  });
+  const vData = await vRes.json();
+  if (!vData.ok) throw new Error(vData.error || "No se pudo verificar la firma.");
+  return vData.next;
+}
+
+
+// ---------------------------------------------------------------------------
+// Cableado de la UI del login (botones cosmeticos de huella/rostro)
+// ---------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("passwordless-form");
+  if (!form) return;
+
+  const usernameInput = document.getElementById("username");
+  const statusBox = document.getElementById("login-status");
+  const scanBtn = document.getElementById("scan-btn");
+
+  function setStatus(message, kind) {
+    statusBox.textContent = message;
+    statusBox.dataset.kind = kind || "info";
+  }
+
+  async function run() {
+    const username = (usernameInput.value || "").trim().toLowerCase();
+    if (!username) {
+      setStatus("Ingresá tu usuario para escanear tu biometría.", "error");
+      return;
+    }
+    scanBtn.disabled = true;
+    setStatus("Escaneando biometría y firmando el acceso…", "info");
+    try {
+      const next = await passwordlessLogin(username);
+      setStatus("Identidad verificada. Redirigiendo…", "ok");
+      window.location.href = next;
+    } catch (err) {
+      setStatus(err.message, "error");
+      scanBtn.disabled = false;
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    run();
+  });
+});

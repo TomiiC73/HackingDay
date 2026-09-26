@@ -1,0 +1,188 @@
+{#
+  Componente informativo/educativo: diagrama de secuencia del flujo estandar
+  FIDO2/WebAuthn. Autocontenido (datos, estilos y animacion de aparicion
+  propios) para poder insertarse con un simple include de este archivo en
+  cualquier pagina de HackerBank, sin tocar rutas ni pasar contexto extra
+  desde app.py. No dispara ninguna llamada real a navigator.credentials ni a
+  /api/webauthn/* - ver webauthn_auth.py y static/js/webauthn-common.js para
+  el flujo real ya implementado, que este diagrama solo explica.
+#}
+{% macro fido2_icon(key) %}
+  {%- if key == 'usuario' -%}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg>
+  {%- elif key == 'app' -%}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8.5h18"/><circle cx="6.3" cy="6.3" r="0.6" fill="currentColor" stroke="none"/></svg>
+  {%- elif key == 'servidor' -%}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="6" rx="1.6"/><rect x="4" y="14" width="16" height="6" rx="1.6"/><circle cx="7.6" cy="7" r="0.6" fill="currentColor" stroke="none"/><circle cx="7.6" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg>
+  {%- elif key == 'navegador' -%}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.4 3.9 5.6 3.9 9s-1.4 6.6-3.9 9c-2.5-2.4-3.9-5.6-3.9-9s1.4-6.6 3.9-9Z"/></svg>
+  {%- elif key == 'authenticator' -%}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="6.5" rx="3.25"/><circle cx="16.2" cy="12.25" r="1.2" fill="currentColor" stroke="none"/></svg>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro fido2_chip(actor) %}
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold {{ actor.text }} {{ actor.bg }} {{ actor.border }}">
+  {{ fido2_icon(actor.key) }}
+  {{ actor.label }}
+</span>
+{% endmacro %}
+
+{% set fido2_actors = [
+  {'key': 'usuario', 'label': 'Usuario', 'sub': none, 'text': 'text-white/80', 'bg': 'bg-white/8', 'border': 'border-white/20', 'wrap': 'bg-white/8 border-white/20 text-white/80'},
+  {'key': 'app', 'label': 'App', 'sub': '(front)', 'text': 'text-gold', 'bg': 'bg-gold/10', 'border': 'border-gold/30', 'wrap': 'bg-gold/10 border-gold/30 text-gold'},
+  {'key': 'servidor', 'label': 'Servidor', 'sub': '(backend)', 'text': 'text-sky-400', 'bg': 'bg-sky-400/10', 'border': 'border-sky-400/30', 'wrap': 'bg-sky-400/10 border-sky-400/30 text-sky-400'},
+  {'key': 'navegador', 'label': 'Navegador', 'sub': '(WebAuthn API)', 'text': 'text-violet-400', 'bg': 'bg-violet-400/10', 'border': 'border-violet-400/30', 'wrap': 'bg-violet-400/10 border-violet-400/30 text-violet-400'},
+  {'key': 'authenticator', 'label': 'Authenticator', 'sub': '(SO / dispositivo / llave)', 'text': 'text-emerald-400', 'bg': 'bg-emerald-400/10', 'border': 'border-emerald-400/30', 'wrap': 'bg-emerald-400/10 border-emerald-400/30 text-emerald-400'},
+] %}
+{% set fido2_actor_index = {} %}
+{% for a in fido2_actors %}{% set _ = fido2_actor_index.update({a.key: loop.index0}) %}{% endfor %}
+{% set fido2_actor_by_key = {} %}
+{% for a in fido2_actors %}{% set _ = fido2_actor_by_key.update({a.key: a}) %}{% endfor %}
+
+{% set fido2_steps = [
+  {'from': 'usuario', 'to': 'app', 'label': 'Inicia autenticación', 'detail': 'El usuario elige iniciar sesión o registrarse en la app.'},
+  {'from': 'app', 'to': 'servidor', 'label': 'Solicita un challenge', 'detail': 'El front le pide al backend un desafío para esta operación.'},
+  {'from': 'servidor', 'to': 'app', 'label': 'Devuelve el challenge', 'detail': 'Un valor único, aleatorio y de un solo uso, generado en el servidor.'},
+  {'from': 'app', 'to': 'navegador', 'label': 'navigator.credentials.get() / create()', 'detail': 'El front invoca la WebAuthn API del navegador pasándole el challenge.'},
+  {'from': 'navegador', 'to': 'authenticator', 'label': 'Solicita verificación', 'detail': 'El navegador delega en el authenticator disponible: biometría, PIN o toque físico, según el dispositivo.'},
+  {'from': 'usuario', 'to': 'authenticator', 'label': 'Completa la verificación', 'detail': 'Huella, PIN o toque físico — ocurre directamente en el dispositivo, fuera del alcance de la app y del servidor.', 'dashed': true},
+  {'from': 'authenticator', 'to': 'navegador', 'label': 'Firma el challenge', 'detail': 'Con la clave privada del dispositivo, que nunca sale de ahí.'},
+  {'from': 'navegador', 'to': 'app', 'label': 'Devuelve la respuesta firmada', 'detail': 'El navegador le entrega a la app el resultado de la ceremonia WebAuthn.'},
+  {'from': 'app', 'to': 'servidor', 'label': 'Envía la respuesta firmada', 'detail': 'El front reenvía esa firma al backend para que la valide.'},
+  {'from': 'servidor', 'to': 'app', 'label': 'Verifica y confirma', 'detail': 'El servidor compara la firma contra la clave pública ya guardada y confirma (o rechaza) la autenticación.'},
+] %}
+
+<section id="fido2" class="fido2-reveal transition-all duration-700 ease-out py-20 sm:py-28 px-5 sm:px-8" aria-labelledby="fido2-title">
+  <div class="max-w-5xl mx-auto">
+    <div class="relative glass rounded-3xl p-6 sm:p-10">
+      <div class="text-xs uppercase tracking-[0.2em] text-gold mb-2">Segundo factor real</div>
+      <h3 id="fido2-title" class="text-2xl sm:text-3xl font-extrabold mb-3">Cómo funciona FIDO2/WebAuthn</h3>
+      <p class="text-sm sm:text-base text-white/50 leading-relaxed max-w-2xl mb-8">
+        Diagrama de secuencia del flujo estándar de autenticación FIDO2. La
+        clave privada y cualquier dato biométrico quedan siempre en el
+        dispositivo del usuario — el servidor solo recibe una firma
+        criptográfica de un desafío de un solo uso. Contenido informativo: no
+        reemplaza ni modifica el flujo real ya implementado en el portal.
+      </p>
+
+      <!-- Vista de secuencia con lanes: solo en pantallas grandes, con scroll
+           horizontal propio si el viewport es mas angosto que el ancho
+           minimo del diagrama. -->
+      <div class="hidden lg:block overflow-x-auto pb-2 -mx-2 px-2">
+        <div style="min-width: 820px;">
+          <div class="grid" style="grid-template-columns: repeat({{ fido2_actors|length }}, 1fr);">
+            {% for actor in fido2_actors %}
+            <div class="flex flex-col items-center text-center gap-2 pb-5">
+              <div class="flex h-11 w-11 items-center justify-center rounded-2xl border {{ actor.wrap }}">
+                {{ fido2_icon(actor.key) }}
+              </div>
+              <div>
+                <div class="text-sm font-bold text-white leading-tight">{{ actor.label }}</div>
+                {% if actor.sub %}<div class="text-[11px] text-white/35 leading-tight">{{ actor.sub }}</div>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="relative grid" style="grid-template-columns: repeat({{ fido2_actors|length }}, 1fr); grid-auto-rows: minmax(76px, auto);">
+            {% for actor in fido2_actors %}
+            <div style="grid-column: {{ loop.index }}; grid-row: 1 / {{ fido2_steps|length + 1 }};" class="flex justify-center">
+              <div class="h-full w-px border-l border-dashed border-white/15"></div>
+            </div>
+            {% endfor %}
+            {% for step in fido2_steps %}
+              {% set from_idx = fido2_actor_index[step.from] %}
+              {% set to_idx = fido2_actor_index[step.to] %}
+              {% if from_idx < to_idx %}
+                {% set left, right, forward = from_idx, to_idx, true %}
+              {% else %}
+                {% set left, right, forward = to_idx, from_idx, false %}
+              {% endif %}
+              {# La linea vertical de cada actor esta centrada en SU columna,
+                 no en el borde del bloque que forman los actores intermedios.
+                 Este bloque puede abarcar varias columnas (span), asi que el
+                 punto de anclaje de la flecha no esta al 0%/100% del bloque
+                 sino a medio-columna de cada borde: 50/span %. #}
+              {% set span = right - left + 1 %}
+              {% set edge_inset = (50 / span) | round(3) %}
+              <div style="grid-column: {{ left + 1 }} / {{ right + 2 }}; grid-row: {{ loop.index }};" class="relative flex items-end justify-center px-6 pb-3 pt-5">
+                <div class="mb-2 inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-[#0c0c10] px-2.5 py-1 text-[11px] font-semibold text-white/70">
+                  <span class="text-gold">{{ loop.index }}</span>
+                  <span class="truncate">{{ step.label }}</span>
+                </div>
+                <div class="absolute bottom-3 border-t {{ 'border-dashed' if step.dashed else '' }} border-white/25" style="left: {{ edge_inset }}%; right: {{ edge_inset }}%; height: 0;">
+                  <span aria-hidden="true" class="absolute top-1/2 h-0 w-0 -translate-y-1/2 border-y-[5px] border-y-transparent {{ 'right-0 border-l-[7px] border-l-white/40' if forward else 'left-0 border-r-[7px] border-r-white/40' }}"></span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Leyenda de actores: reemplaza el header de lanes en pantallas
+           chicas, donde la vista de secuencia esta oculta. -->
+      <div class="flex lg:hidden flex-wrap gap-2 mb-2">
+        {% for actor in fido2_actors %}{{ fido2_chip(actor) }}{% endfor %}
+      </div>
+
+      <!-- Detalle paso a paso: version simplificada/vertical, la unica que
+           ven pantallas chicas (hace de diagrama ahi) y referencia
+           complementaria debajo del diagrama de lanes en desktop. -->
+      <div class="mt-6 lg:mt-10 lg:pt-8 lg:border-t lg:border-white/10">
+        <h4 class="hidden lg:block text-xs uppercase tracking-[0.2em] text-white/35 mb-5">Detalle paso a paso</h4>
+        <ol class="relative space-y-6">
+          <div aria-hidden="true" class="absolute left-[15px] top-2 bottom-2 w-px bg-white/10"></div>
+          {% for step in fido2_steps %}
+          <li class="relative pl-10">
+            <span class="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-full border border-gold/30 bg-gold/10 text-xs font-bold text-gold">{{ loop.index }}</span>
+            <div class="mb-1.5 flex flex-wrap items-center gap-2">
+              {{ fido2_chip(fido2_actor_by_key[step.from]) }}
+              <span class="text-white/30" aria-hidden="true">&rarr;</span>
+              {{ fido2_chip(fido2_actor_by_key[step.to]) }}
+              {% if step.dashed %}<span class="text-[10px] uppercase tracking-wide text-white/35">fuera de banda</span>{% endif %}
+            </div>
+            <p class="text-sm font-bold text-white">{{ step.label }}</p>
+            <p class="text-sm leading-relaxed text-white/50">{{ step.detail }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  // Fade/slide sutil al entrar en viewport, sin depender de si la pagina que
+  // incluye este partial carga GSAP/ScrollTrigger o no (dashboard.html,
+  // login.html, etc. no lo garantizan) - asi el componente funciona igual
+  // insertado en cualquier pagina de HackerBank.
+  //
+  // El estado inicial (invisible) lo pone este script, no el HTML: si el JS
+  // no corre, el contenido igual se ve. Es contenido informativo - nunca
+  // debe quedar oculto por una animacion que no llego a dispararse.
+  var els = document.querySelectorAll('.fido2-reveal');
+  if (!els.length) return;
+
+  function show(el) { el.classList.remove('opacity-0', 'translate-y-6'); }
+
+  if (!('IntersectionObserver' in window)) return;
+
+  els.forEach(function (el) { el.classList.add('opacity-0', 'translate-y-6'); });
+
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        show(entry.target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  els.forEach(function (el) { observer.observe(el); });
+
+  // Red de seguridad: si por lo que sea el observer no llega a disparar
+  // (pestaña en segundo plano, seccion mas alta que el viewport en un
+  // navegador quisquilloso), el contenido se muestra igual.
+  window.setTimeout(function () { els.forEach(show); }, 3000);
+})();
+</script>

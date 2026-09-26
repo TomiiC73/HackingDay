@@ -1,0 +1,15 @@
+# CTF "Passwordless de Carton" (HackerBank / Hacking Day Cordoba).
+# Correr desde adentro de banco_app/ con:
+#   docker compose up -d --build
+# El Dockerfile hace todo: instala deps, siembra la base (seed.py, que la
+# recrea limpia en cada arranque) y levanta app.py en el puerto 5000.
+services:
+  hackerbank-ctf:
+    build:
+      context: .
+    container_name: hackerbank-ctf
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    # Sin volumen persistente a proposito: cada "up" o reinicio deja la base
+    # limpia y con claves nuevas, para resetear el entorno entre participantes.

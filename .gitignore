@@ -1,0 +1,18 @@
+# Clon de referencia (repo aparte, no forma parte de este proyecto)
+HackerTech/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Base de datos generada por seed.py
+banco_app/hackerbank.db
+
+# Entorno local
+banco_app/.env
+
+# Enunciado original del desafio (documento de trabajo, no parte de la app)
+DESAFIO_PASSWORDLESS_DE_CARTON.md

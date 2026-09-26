@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HackerBank — Banca digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        colors: {
+          gold: { DEFAULT: '#c9a84c', light: '#e8d38a', dark: '#8f6f27' },
+        },
+      },
+    },
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<style>
+  html { background: #050507; }
+  body { background: #050507; color: #f5f5f7; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; overflow-x: hidden; }
+
+  ::selection { background: #c9a84c; color: #050507; }
+
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: #050507; }
+  ::-webkit-scrollbar-thumb { background: #2a2a33; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
+
+  .text-gradient-gold {
+    background: linear-gradient(95deg, #f3e3b4 0%, #c9a84c 45%, #8f6f27 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .grid-fade {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 20%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 70% 55% at 50% 20%, #000 40%, transparent 100%);
+  }
+
+  .glow {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(110px);
+    pointer-events: none;
+  }
+
+  .btn-glossy-gold {
+    color: #000;
+    border: 1px solid rgba(255, 246, 208, 0.7);
+    background: linear-gradient(135deg, #fff6d0 0%, #ffe066 25%, #d4af37 60%, #a3781f 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 0 24px rgba(255, 224, 102, 0.6),
+      0 0 48px rgba(255, 193, 7, 0.28),
+      0 6px 16px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .btn-glossy-gold:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 0 32px rgba(255, 224, 102, 0.8),
+      0 0 60px rgba(255, 193, 7, 0.35),
+      0 8px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .btn-glitter {
+    position: relative;
+    overflow: hidden;
+    color: #000;
+    background: linear-gradient(110deg, #fff8dd 0%, #ffe066 12%, #c9a84c 24%, #fff8dd 36%, #ffd700 48%, #8f6f27 60%, #fff8dd 72%, #ffe066 84%, #c9a84c 100%);
+    background-size: 300% 100%;
+    animation: glitterMove 4s linear infinite;
+    box-shadow: 0 0 25px rgba(201, 168, 76, 0.55), 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .btn-glitter::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+    transform: skewX(-20deg);
+    animation: glitterShine 2.4s ease-in-out infinite;
+  }
+
+  .btn-glitter:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.85), 0 12px 34px rgba(0, 0, 0, 0.6);
+  }
+
+  @keyframes glitterMove {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+
+  @keyframes glitterShine {
+    0% { left: -150%; }
+    55% { left: 150%; }
+    100% { left: 150%; }
+  }
+
+  .card-stage { perspective: 1600px; }
+  .card-3d { transform-style: preserve-3d; will-change: transform; }
+  .card-face { backface-visibility: hidden; }
+
+  /* Tarjeta con grosor 3D real: 6 caras de una caja (340 x 212 x 24px) */
+  .card-box {
+    position: relative;
+    width: 340px;
+    height: 212px;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .card-box__face {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    backface-visibility: hidden;
+  }
+  .card-box__front, .card-box__back {
+    width: 340px;
+    height: 212px;
+    margin: -106px 0 0 -170px;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .card-box__front { transform: translateZ(12px); }
+  .card-box__back {
+    transform: rotateY(180deg) translateZ(12px);
+    background: linear-gradient(135deg, #eec96a 0%, #b8871f 55%, #8f6f27 100%);
+  }
+  /* Grosor real de la tarjeta: capas doradas paralelas al frente, apiladas en
+     profundidad (mazo de cartas). Al girar, sus bordes se ven como un canto
+     solido y continuo -sin costuras- porque no hay ninguna pared perpendicular
+     que tenga que encajar con el frente al pixel. */
+  .card-box__layer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 340px;
+    height: 212px;
+    margin: -106px 0 0 -170px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #eec96a 0%, #c9922a 55%, #a3781d 100%);
+    backface-visibility: hidden;
+  }
+
+  .marquee-track { animation: marquee 28s linear infinite; }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .reveal-side { opacity: 0; }
+
+  #nav-toggle-icon span { transition: transform .25s ease, opacity .25s ease; }
+  #mobile-menu { transition: max-height .35s ease, opacity .3s ease; }
+
+  details.faq-item summary::-webkit-details-marker { display: none; }
+  details.faq-item[open] .faq-chevron { transform: rotate(45deg); }
+  details.faq-item .faq-answer {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .35s ease;
+  }
+  details.faq-item[open] .faq-answer { grid-template-rows: 1fr; }
+  details.faq-item .faq-answer > div { overflow: hidden; }
+
+  /* --- Escudo animado de la seccion Seguridad --- */
+  #shield-wrap { animation: shieldFloat 4s ease-in-out infinite; }
+  @keyframes shieldFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .radar-ring {
+    transform-origin: 130px 150px;
+    animation: radarPulse 2.8s ease-out infinite;
+  }
+  .radar-ring:nth-of-type(2) { animation-delay: 0.9s; }
+  .radar-ring:nth-of-type(3) { animation-delay: 1.8s; }
+  @keyframes radarPulse {
+    0% { transform: scale(0.55); opacity: 0.65; }
+    100% { transform: scale(1.9); opacity: 0; }
+  }
+</style>
+</head>
+<body class="antialiased selection:bg-gold">
+
+<!-- ============================== NAV ============================== -->
+<nav id="site-nav" class="fixed top-0 inset-x-0 z-50 transition-all duration-300 border-b border-transparent">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 flex items-center justify-between h-20">
+    <a href="{{ url_for('landing') }}" class="flex items-center gap-2.5 text-lg font-bold tracking-[0.2em] uppercase">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 2L29 9V23L16 30L3 23V9L16 2Z" stroke="#c9a84c" stroke-width="1.4"/>
+        <path d="M16 9L22 12.5V19.5L16 23L10 19.5V12.5L16 9Z" stroke="#f5f5f7" stroke-opacity="0.7" stroke-width="1.2"/>
+      </svg>
+      <span>Hacker<span class="text-gradient-gold">Bank</span></span>
+    </a>
+
+    <div class="hidden md:flex items-center gap-9 text-sm tracking-wide text-white/60">
+      <a href="#productos" class="hover:text-white transition-colors">Productos</a>
+      <a href="#seguridad" class="hover:text-white transition-colors">Seguridad</a>
+      <a href="#sucursales" class="hover:text-white transition-colors">Sucursales</a>
+      <a href="#ayuda" class="hover:text-white transition-colors">Ayuda</a>
+      {% if session.get('authenticated_user_id') %}
+        <a href="{{ url_for('dashboard') }}" class="hover:text-white transition-colors">Cuenta</a>
+        <a href="{{ url_for('logout') }}" class="hover:text-white transition-colors">Salir</a>
+      {% else %}
+        <a href="{{ url_for('login_page') }}"
+           class="btn-glossy-gold px-5 py-2.5 rounded-full text-black font-bold tracking-wide">
+          INICIAR SESIÓN
+        </a>
+      {% endif %}
+    </div>
+
+    <button id="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" class="md:hidden flex flex-col justify-center gap-1.5 w-9 h-9">
+      <span id="bar1" class="block h-[1.5px] w-6 bg-white transition-transform duration-300"></span>
+      <span id="bar2" class="block h-[1.5px] w-6 bg-white transition-opacity duration-300"></span>
+      <span id="bar3" class="block h-[1.5px] w-6 bg-white transition-transform duration-300"></span>
+    </button>
+  </div>
+
+  <div id="mobile-menu" class="md:hidden overflow-hidden max-h-0 opacity-0 bg-black/95 border-t border-white/5">
+    <div class="px-6 py-6 flex flex-col gap-5 text-sm text-white/70">
+      <a href="#productos">Productos</a>
+      <a href="#seguridad">Seguridad</a>
+      <a href="#sucursales">Sucursales</a>
+      <a href="#ayuda">Ayuda</a>
+      {% if session.get('authenticated_user_id') %}
+        <a href="{{ url_for('dashboard') }}">Cuenta</a>
+        <a href="{{ url_for('logout') }}">Salir</a>
+      {% else %}
+        <a href="{{ url_for('login_page') }}" class="text-gold font-semibold">Ingresar →</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<!-- ============================== HERO ============================== -->
+<header class="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-20">
+  <div class="absolute inset-0 grid-fade"></div>
+  <div class="glow w-[560px] h-[560px] bg-gold/20 -top-40 -left-40"></div>
+  <div class="glow w-[480px] h-[480px] bg-gold/10 top-1/3 right-0"></div>
+
+  <div class="relative max-w-7xl mx-auto px-6 lg:px-10 w-full grid lg:grid-cols-2 gap-16 items-center">
+    <div>
+      <div id="hero-badge" class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs tracking-[0.2em] uppercase text-white/60 mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-gold"></span>
+        Nuevo &middot; Acceso sin contraseñas
+      </div>
+
+      <h1 id="hero-title" class="font-extrabold leading-[1.03] text-5xl sm:text-6xl lg:text-7xl tracking-tight">
+        <span class="hero-line block">Passwordless.</span>
+        <span class="hero-line block text-gradient-gold">Sin contraseñas, sin miedo.</span>
+      </h1>
+
+      <p id="hero-sub" class="mt-8 max-w-xl text-lg text-white/55 leading-relaxed">
+        Olvidate de las contraseñas. Entrá a tu banco con tu huella o tu
+        rostro: más simple, más rápido y más seguro. La experiencia de acceso
+        más avanzada, ahora en HackerBank.
+      </p>
+
+      <a href="{{ url_for('login_page') }}"
+         class="btn-glitter mt-8 w-full block text-center px-7 py-4 rounded-full font-extrabold text-lg sm:text-xl tracking-wide">
+        <span class="relative z-10">INGRESAR</span>
+      </a>
+    </div>
+
+    <!-- Celular gigante: gira sobre su eje a medida que se scrollea el hero -->
+    <div class="hidden lg:flex justify-center items-center" style="perspective: 2200px;">
+      <div id="hero-phone-spin" class="w-[340px]" style="transform-style: preserve-3d;">
+        <div class="relative w-full h-[700px] rounded-[3.25rem] bg-gradient-to-b from-[#1a1a20] to-[#050507] border border-white/10 shadow-[0_60px_120px_rgba(0,0,0,0.7)] p-3" style="transform-style: preserve-3d;">
+
+          <!-- Botones fisicos: encendido (derecha) + volumen y silencio (izquierda) -->
+          <div class="absolute -right-[3px] top-[190px] w-[3px] h-[86px] rounded-r-md bg-gradient-to-b from-[#2a2a30] to-[#0c0c10] border border-white/10"></div>
+          <div class="absolute -left-[3px] top-[130px] w-[3px] h-[10px] rounded-l-md bg-gradient-to-b from-[#2a2a30] to-[#0c0c10] border border-white/10"></div>
+          <div class="absolute -left-[3px] top-[168px] w-[3px] h-[52px] rounded-l-md bg-gradient-to-b from-[#2a2a30] to-[#0c0c10] border border-white/10"></div>
+          <div class="absolute -left-[3px] top-[230px] w-[3px] h-[52px] rounded-l-md bg-gradient-to-b from-[#2a2a30] to-[#0c0c10] border border-white/10"></div>
+
+          <div class="relative w-full h-full" style="transform-style: preserve-3d;">
+
+            <!-- Cara A: Inicio (se ve al principio del giro) -->
+            <div class="absolute inset-0 rounded-[2.6rem] bg-[#0b0b0e] overflow-hidden ring-1 ring-white/5" style="backface-visibility: hidden;">
+              <div class="absolute top-3 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-20"></div>
+
+              <div class="relative z-10 flex items-center justify-between px-7 pt-5 pb-1 text-[13px] font-semibold text-white/90">
+                <span>9:41</span>
+                <div class="flex items-center gap-1.5">
+                  <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 10L1 8a7 7 0 0114 0v2M4 10V6a4 4 0 018 0v4M7 10V9a1 1 0 012 0v1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <svg width="19" height="12" viewBox="0 0 24 14" fill="none"><rect x="1" y="1" width="19" height="12" rx="2.5" stroke="#fff" stroke-width="1.2"/><rect x="3" y="3" width="14" height="8" rx="1" fill="#fff"/><rect x="21.5" y="4.5" width="1.6" height="5" rx="0.8" fill="#fff"/></svg>
+                </div>
+              </div>
+
+              <div class="relative z-10 flex items-center justify-between px-6 pt-4">
+                <div>
+                  <div class="text-xs text-white/40 tracking-wide">Hola,</div>
+                  <div class="text-lg font-bold">Uriel 👋</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8d38a" stroke-width="1.6"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                </div>
+              </div>
+
+              <div class="relative z-10 mx-6 mt-5 rounded-2xl p-5 bg-gradient-to-br from-[#1c1c22] to-black border border-gold/25">
+                <div class="text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Saldo disponible</div>
+                <div class="text-3xl font-extrabold tracking-tight">$ •••.•••,50</div>
+                <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold text-emerald-400">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  Rendimiento diario +$ 340
+                </div>
+              </div>
+
+              <div class="relative z-10 grid grid-cols-4 gap-2 px-6 mt-6">
+                <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full bg-gold/15 flex items-center justify-center text-gold">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10h16M4 10l4-4M4 10l4 4M20 14H4M20 14l-4-4M20 14l-4 4"/></svg>
+                  </div>
+                  <span class="text-[9px] text-white/50">Transferir</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="1"/><path d="M3 10h18M7 15h4"/></svg>
+                  </div>
+                  <span class="text-[9px] text-white/50">Pagar</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                  </div>
+                  <span class="text-[9px] text-white/50">Tarjetas</span>
+                </div>
+                <div class="flex flex-col items-center gap-2">
+                  <div class="w-12 h-12 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+                  </div>
+                  <span class="text-[9px] text-white/50">Más</span>
+                </div>
+              </div>
+
+              <div class="relative z-10 px-6 mt-7">
+                <div class="text-[11px] uppercase tracking-widest text-white/35 mb-2.5">Movimientos</div>
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-7 h-7 rounded-full bg-emerald-400/15 flex items-center justify-center text-emerald-400">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                      </div>
+                      <span class="text-xs text-white/70">Sueldo</span>
+                    </div>
+                    <span class="text-xs font-semibold text-emerald-400">+$120.000</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                      </div>
+                      <span class="text-xs text-white/70">Netflix</span>
+                    </div>
+                    <span class="text-xs font-semibold text-white/60">-$4.200</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="absolute bottom-0 inset-x-0 flex items-center justify-around py-4 border-t border-white/8 bg-black/40 backdrop-blur">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8d38a" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+              </div>
+
+              <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1.5 rounded-full bg-white/25"></div>
+            </div>
+
+            <!-- Cara B: Tarjetas (aparece al llegar a la mitad del giro) -->
+            <div class="absolute inset-0 rounded-[2.6rem] bg-[#0b0b0e] overflow-hidden ring-1 ring-white/5" style="backface-visibility: hidden; transform: rotateY(180deg);">
+              <div class="absolute top-3 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-20"></div>
+
+              <div class="relative z-10 flex items-center justify-between px-7 pt-5 pb-1 text-[13px] font-semibold text-white/90">
+                <span>9:41</span>
+                <div class="flex items-center gap-1.5">
+                  <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M1 10L1 8a7 7 0 0114 0v2M4 10V6a4 4 0 018 0v4M7 10V9a1 1 0 012 0v1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <svg width="19" height="12" viewBox="0 0 24 14" fill="none"><rect x="1" y="1" width="19" height="12" rx="2.5" stroke="#fff" stroke-width="1.2"/><rect x="3" y="3" width="14" height="8" rx="1" fill="#fff"/><rect x="21.5" y="4.5" width="1.6" height="5" rx="0.8" fill="#fff"/></svg>
+                </div>
+              </div>
+
+              <div class="relative z-10 px-6 pt-5">
+                <div class="text-lg font-bold">Tus tarjetas</div>
+              </div>
+
+              <div class="relative z-10 mx-6 mt-5 rounded-2xl p-4 bg-gradient-to-br from-[#1c1c22] to-black border-2 border-gold">
+                <div class="flex items-center justify-between mb-6">
+                  <span class="text-[9px] uppercase tracking-widest text-white/40">Crédito</span>
+                  <svg width="34" height="11" viewBox="-15 0 240 72" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="skewX(-10)" fill="#ffffff">
+                      <polygon points="2,4 20,4 37,54 54,4 72,4 44,68 30,68"/>
+                      <rect x="86" y="4" width="20" height="64"/>
+                      <path d="M136 14 C118 4 100 10 100 22 C100 34 118 34 121 34 C124 34 142 34 142 46 C142 58 124 64 106 54" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+                      <polygon points="146,68 164,68 181,18 198,68 216,68 188,4 174,4"/>
+                      <rect x="158" y="38" width="36" height="10"/>
+                    </g>
+                  </svg>
+                </div>
+                <div class="font-mono text-sm tracking-widest mb-5">•••• •••• •••• 0417</div>
+                <div class="flex items-center justify-between text-[9px] text-white/50">
+                  <span>SR. VARGAS</span>
+                  <span>12/29</span>
+                </div>
+              </div>
+
+              <div class="relative z-10 mx-6 mt-4 rounded-2xl p-4 bg-white/[0.04] border border-white/10">
+                <div class="flex items-center justify-between mb-6">
+                  <span class="text-[9px] uppercase tracking-widest text-white/40">Débito</span>
+                  <svg width="26" height="17" viewBox="0 0 40 26" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="13" cy="13" r="13" fill="#EB001B"/>
+                    <circle cx="27" cy="13" r="13" fill="#F79E1B"/>
+                    <path d="M20 2.3a13 13 0 000 21.4 13 13 0 000-21.4z" fill="#FF5F00"/>
+                  </svg>
+                </div>
+                <div class="font-mono text-sm tracking-widest mb-5 text-white/70">•••• •••• •••• 3307</div>
+                <div class="flex items-center justify-between text-[9px] text-white/40">
+                  <span>SR. VARGAS</span>
+                  <span>—</span>
+                </div>
+              </div>
+
+              <div class="relative z-10 mx-6 mt-6 flex items-center gap-2 text-xs text-gold">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+                Bloqueo instantáneo desde la app
+              </div>
+
+              <div class="absolute bottom-0 inset-x-0 flex items-center justify-around py-4 border-t border-white/8 bg-black/40 backdrop-blur">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8d38a" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+              </div>
+
+              <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1.5 rounded-full bg-white/25"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute bottom-8 inset-x-0 flex justify-center text-white/30">
+    <svg width="20" height="30" viewBox="0 0 20 30" class="animate-bounce"><path d="M10 2v22M3 17l7 7 7-7" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+</header>
+
+<!-- ============================== TICKER ============================== -->
+<div class="relative border-y border-white/8 bg-white/[0.02] py-4 overflow-hidden">
+  <div class="flex whitespace-nowrap marquee-track">
+    {% for i in range(2) %}
+    <div class="flex items-center gap-14 pr-14 text-sm text-white/50">
+      <span>Dólar USD/ARS &middot; Compra <b class="text-white">$ {{ usd_buy | currency }}</b> &middot; Venta <b class="text-white">$ {{ usd_sell | currency }}</b></span>
+      <span class="text-gold">&#9670;</span>
+      <span>Euro EUR/ARS &middot; Compra <b class="text-white">$ {{ eur_buy | currency }}</b> &middot; Venta <b class="text-white">$ {{ eur_sell | currency }}</b></span>
+      <span class="text-gold">&#9670;</span>
+      <span>Plazo fijo 30 días &middot; TNA <b class="text-white">{{ fixed_deposit_tna }}%</b></span>
+      <span class="text-gold">&#9670;</span>
+      <span>Préstamos personales &middot; TNA <b class="text-white">{{ loan_tna }}%</b></span>
+      <span class="text-gold">&#9670;</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ============================== TARJETA / PARALLAX CENTERPIECE ============================== -->
+<section class="relative py-40 lg:py-56 overflow-hidden">
+  <div class="glow w-[600px] h-[600px] bg-gold/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 grid lg:grid-cols-2 gap-16 items-center">
+    <div id="card-copy" class="relative z-10 order-2 lg:order-1">
+      <div class="section__eyebrow text-gold text-sm tracking-[0.25em] uppercase mb-4">Tu tarjeta, en cualquier lugar</div>
+      <h2 class="text-4xl lg:text-6xl font-extrabold leading-tight mb-6">
+        Una tarjeta que<br>se mueve con vos.
+      </h2>
+      <p class="text-white/55 text-lg leading-relaxed max-w-md">
+        Crédito y débito Visa &amp; Mastercard sin costo el primer año, con
+        alertas de consumo en tiempo real y bloqueo instantáneo desde la app
+        si algo no se ve bien.
+      </p>
+    </div>
+
+    <div class="relative order-1 lg:order-2 flex justify-center card-stage" id="card-parallax-wrap">
+      <div class="scale-[0.82] sm:scale-100">
+        <div id="bank-card" class="card-box">
+          <!-- Cara trasera (se ve al girar del todo) -->
+          <div class="card-box__face card-box__back"></div>
+          <!-- Grosor: mazo de capas doradas paralelas apiladas en profundidad (sin paredes
+               perpendiculares, asi no hay costuras entre caras: cada capa es simplemente
+               el mismo rectangulo redondeado un poco mas atras que la anterior). -->
+          <div class="card-box__layer" style="transform: translateZ(-10px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(-8px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(-6px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(-4px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(-2px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(0px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(2px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(4px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(6px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(8px)"></div>
+          <div class="card-box__layer" style="transform: translateZ(10px)"></div>
+          <!-- Cara frontal -->
+          <div class="card-box__face card-box__front drop-shadow-[0_40px_80px_rgba(201,168,76,0.2)]">
+            <svg viewBox="0 0 380 238" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#22222a"/>
+                  <stop offset="55%" stop-color="#0c0c10"/>
+                  <stop offset="100%" stop-color="#000000"/>
+                </linearGradient>
+                <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#f3e3b4"/>
+                  <stop offset="50%" stop-color="#c9a84c"/>
+                  <stop offset="100%" stop-color="#8f6f27"/>
+                </linearGradient>
+                <linearGradient id="glossGrad" x1="0" y1="0" x2="1" y2="1" gradientTransform="rotate(20 190 119)">
+                  <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+                  <stop offset="42%" stop-color="#ffffff" stop-opacity="0"/>
+                  <stop offset="50%" stop-color="#ffffff" stop-opacity="0.10"/>
+                  <stop offset="58%" stop-color="#ffffff" stop-opacity="0"/>
+                  <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+                </linearGradient>
+                <clipPath id="cardClip"><rect x="2" y="2" width="376" height="234" rx="16"/></clipPath>
+              </defs>
+              <rect x="2" y="2" width="376" height="234" rx="16" fill="url(#cardGrad)" stroke="#c9a84c" stroke-opacity="0.3" stroke-width="1.5"/>
+              <rect x="2" y="2" width="376" height="234" fill="url(#glossGrad)" clip-path="url(#cardClip)"/>
+
+              <!-- Chip EMV con grilla de contactos realista -->
+              <rect x="28" y="46" width="52" height="40" rx="7" fill="url(#chipGrad)"/>
+              <g stroke="#000" stroke-opacity="0.3" stroke-width="1.2">
+                <line x1="44" y1="46" x2="44" y2="86"/>
+                <line x1="64" y1="46" x2="64" y2="86"/>
+                <line x1="28" y1="60" x2="80" y2="60"/>
+                <line x1="28" y1="72" x2="80" y2="72"/>
+              </g>
+
+              <!-- Icono de pago sin contacto -->
+              <g transform="translate(104,66) rotate(45)" fill="none" stroke="#8a8a92" stroke-width="2.4" stroke-linecap="round">
+                <path d="M0,-16 A16,16 0 010,16"/>
+                <path d="M0,-9.5 A9.5,9.5 0 010,9.5"/>
+                <path d="M0,-3 A3,3 0 010,3"/>
+              </g>
+
+              <text x="28" y="140" font-family="Consolas, monospace" font-size="22" letter-spacing="3" fill="#f5f5f7">4821 &#8226;&#8226;&#8226;&#8226; &#8226;&#8226;&#8226;&#8226; 0417</text>
+              <text x="28" y="200" font-family="Inter, sans-serif" font-size="11" letter-spacing="2" fill="#8a8a92">TITULAR</text>
+              <text x="28" y="218" font-family="Inter, sans-serif" font-size="15" letter-spacing="1.5" fill="#f5f5f7">SR. VARGAS</text>
+              <text x="330" y="200" font-family="Inter, sans-serif" font-size="11" fill="#8a8a92" text-anchor="end">VÁLIDA HASTA</text>
+              <text x="330" y="218" font-family="Inter, sans-serif" font-size="15" fill="#f5f5f7" text-anchor="end">12/29</text>
+
+              <!-- Marca HackerBank (reemplaza el logo de red que no quedaba bien) -->
+              <g transform="translate(330,16)">
+                <path d="M16 2L29 9V23L16 30L3 23V9L16 2Z" fill="none" stroke="#c9a84c" stroke-width="1.6"/>
+                <path d="M16 9L22 12.5V19.5L16 23L10 19.5V12.5L16 9Z" fill="none" stroke="#f5f5f7" stroke-opacity="0.6" stroke-width="1.3"/>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CARACTERISTICAS ============================== -->
+<section class="relative py-28 lg:py-36">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10">
+    <div class="max-w-2xl mb-20">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">Por qué HackerBank</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight">El banco pensado para tu día a día</h2>
+      <p class="mt-5 text-white/55 text-lg leading-relaxed">
+        Más de un siglo de experiencia bancaria, ahora en tu bolsillo. Sin filas,
+        sin papeles y con la seguridad como prioridad número uno.
+      </p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-6">
+      <div class="feature-reveal reveal-side glass rounded-3xl p-8" data-dir="left">
+        <div class="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold mb-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <div class="text-lg font-semibold mb-2">Seguridad bancaria</div>
+        <p class="text-white/50 leading-relaxed">Cifrado de extremo a extremo y monitoreo antifraude las 24 horas.</p>
+      </div>
+
+      <div class="feature-reveal reveal-side glass rounded-3xl p-8" data-dir="right">
+        <div class="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold mb-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        <div class="text-lg font-semibold mb-2">Atención 24/7</div>
+        <p class="text-white/50 leading-relaxed">Un equipo humano disponible todos los días del año, a cualquier hora.</p>
+      </div>
+
+      <div class="feature-reveal reveal-side glass rounded-3xl p-8" data-dir="left">
+        <div class="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold mb-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 15l6-6M9.5 10a.5.5 0 100-1 .5.5 0 000 1zM14.5 15a.5.5 0 100-1 .5.5 0 000 1z"/></svg>
+        </div>
+        <div class="text-lg font-semibold mb-2">Sin costos ocultos</div>
+        <p class="text-white/50 leading-relaxed">Mantenimiento de cuenta bonificado y comisiones siempre a la vista.</p>
+      </div>
+
+      <div class="feature-reveal reveal-side glass rounded-3xl p-8" data-dir="right">
+        <div class="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center text-gold mb-6">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.3 6.8 19.1l1-5.8-4.3-4.1 5.9-.9L12 3z"/></svg>
+        </div>
+        <div class="text-lg font-semibold mb-2">La app mejor calificada</div>
+        <p class="text-white/50 leading-relaxed">4.8/5 en las tiendas de aplicaciones, según usuarios verificados.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== PRODUCTOS ============================== -->
+<section class="relative py-28 lg:py-36 bg-white/[0.015]" id="productos">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10">
+    <div class="max-w-2xl mb-20 reveal-up">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">Productos</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight">Todo lo que necesitás de tu banco</h2>
+      <p class="mt-5 text-white/55 text-lg leading-relaxed">
+        Tarjetas, préstamos y plazos fijos pensados para acompañarte. Simulá tu
+        producto antes de solicitarlo.
+      </p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="product-reveal glass rounded-3xl p-7 flex flex-col">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-6"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+        <div class="text-xs uppercase tracking-widest text-white/40 mb-1">Tarjetas</div>
+        <div class="text-lg font-semibold mb-3">Visa &amp; Mastercard</div>
+        <p class="text-white/50 text-sm leading-relaxed flex-1">
+          Crédito y débito sin costo de mantenimiento el primer año. Millas,
+          cuotas sin interés y alertas de consumo en tiempo real.
+        </p>
+        <div class="mt-6 text-2xl font-bold text-gold">{{ credit_card_tna }}% <small class="text-xs font-normal text-white/40">TNA crédito</small></div>
+        <a href="{{ url_for('login_page') }}" class="mt-5 inline-block text-sm font-semibold text-white/80 hover:text-gold transition-colors">Conocer más →</a>
+      </div>
+
+      <div class="product-reveal glass rounded-3xl p-7 flex flex-col">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-6"><circle cx="8.5" cy="8.5" r="5.5"/><circle cx="15" cy="15" r="5.5"/></svg>
+        <div class="text-xs uppercase tracking-widest text-white/40 mb-1">Préstamos</div>
+        <div class="text-lg font-semibold mb-3">Préstamos personales</div>
+        <p class="text-white/50 text-sm leading-relaxed flex-1">
+          Hasta $ {{ loan_max_ars | currency }} con cuotas fijas en pesos y
+          acreditación en el día para clientes con cuenta sueldo.
+        </p>
+        <div class="mt-6 text-2xl font-bold text-gold">{{ loan_tna }}% <small class="text-xs font-normal text-white/40">TNA</small></div>
+        <a href="{{ url_for('login_page') }}" class="mt-5 inline-block text-sm font-semibold text-white/80 hover:text-gold transition-colors">Simular préstamo →</a>
+      </div>
+
+      <div class="product-reveal glass rounded-3xl p-7 flex flex-col">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-6"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+        <div class="text-xs uppercase tracking-widest text-white/40 mb-1">Inversiones</div>
+        <div class="text-lg font-semibold mb-3">Plazo fijo online</div>
+        <p class="text-white/50 text-sm leading-relaxed flex-1">
+          Constituilo en segundos desde la app, sin mínimos elevados. Renovación
+          automática opcional, en pesos o dólares.
+        </p>
+        <div class="mt-6 text-2xl font-bold text-gold">{{ fixed_deposit_tna }}% <small class="text-xs font-normal text-white/40">TNA &middot; {{ fixed_deposit_min_days }}d mín.</small></div>
+        <a href="{{ url_for('login_page') }}" class="mt-5 inline-block text-sm font-semibold text-white/80 hover:text-gold transition-colors">Invertir ahora →</a>
+      </div>
+
+      <div class="product-reveal glass rounded-3xl p-7 flex flex-col">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-6"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        <div class="text-xs uppercase tracking-widest text-white/40 mb-1">Protección</div>
+        <div class="text-lg font-semibold mb-3">Seguros HackerBank</div>
+        <p class="text-white/50 text-sm leading-relaxed flex-1">
+          Seguro de vida, de hogar y de dispositivos móviles, con alta 100%
+          online y sin papeleo.
+        </p>
+        <div class="mt-6 text-2xl font-bold text-gold">$ 4.500 <small class="text-xs font-normal text-white/40">por mes</small></div>
+        <a href="{{ url_for('login_page') }}" class="mt-5 inline-block text-sm font-semibold text-white/80 hover:text-gold transition-colors">Ver seguros →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== APP MOVIL ============================== -->
+<section class="relative py-28 lg:py-40 overflow-hidden" id="app">
+  <div class="glow w-[520px] h-[520px] bg-gold/10 top-0 right-1/4"></div>
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 grid lg:grid-cols-2 gap-16 items-center">
+    <div class="reveal-side" data-dir="left">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">App móvil</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">Tu banco en la palma de la mano</h2>
+      <p class="text-white/55 text-lg leading-relaxed max-w-md mb-10">
+        Gestioná tu cuenta, transferí sin CBU con solo el alias y pagá servicios
+        desde donde estés. Disponible para iOS y Android.
+      </p>
+      <div class="flex flex-wrap gap-4">
+        <a href="{{ url_for('login_page') }}" class="flex items-center gap-3 glass rounded-2xl px-5 py-3 hover:border-white/20 transition-colors">
+          <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141 4 184.8 4 273.5q0 39.3 14.4 80.6c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.3zM254.4 88.9c26.7-31.7 24.3-60.6 23.5-71-23.6 1.4-51 16.4-66.6 34.8-17.2 19.6-27.3 43.9-25.2 71.2 25.8 2 49.3-11.1 68.3-35z"/></svg>
+          <span class="leading-tight text-sm"><small class="block text-white/40">Descargar en</small><strong>App Store</strong></span>
+        </a>
+        <a href="{{ url_for('login_page') }}" class="flex items-center gap-3 glass rounded-2xl px-5 py-3 hover:border-white/20 transition-colors">
+          <svg width="20" height="20" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,50 18,12 51.5,31" fill="#4285F4"/>
+            <polygon points="40,50 51.5,31 85,50" fill="#34A853"/>
+            <polygon points="40,50 85,50 51.5,69" fill="#FBBC05"/>
+            <polygon points="40,50 51.5,69 18,88" fill="#EA4335"/>
+          </svg>
+          <span class="leading-tight text-sm"><small class="block text-white/40">Disponible en</small><strong>Google Play</strong></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="flex justify-center" id="phone-parallax" style="perspective: 1800px;">
+      <!-- Marco del telefono -->
+      <div id="phone-tilt" class="relative w-[300px] h-[620px] rounded-[2.75rem] bg-gradient-to-b from-[#1a1a20] to-[#050507] border border-white/10 shadow-[0_40px_90px_rgba(0,0,0,0.65)] p-2.5">
+        <div class="relative w-full h-full rounded-[2.1rem] bg-[#0b0b0e] overflow-hidden ring-1 ring-white/5">
+
+          <!-- Isla dinamica / notch -->
+          <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20"></div>
+
+          <!-- Barra de estado -->
+          <div class="relative z-10 flex items-center justify-between px-6 pt-4 pb-1 text-[11px] font-semibold text-white/90">
+            <span>9:41</span>
+            <div class="flex items-center gap-1">
+              <svg width="14" height="10" viewBox="0 0 16 12" fill="none"><path d="M1 10L1 8a7 7 0 0114 0v2M4 10V6a4 4 0 018 0v4M7 10V9a1 1 0 012 0v1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <svg width="16" height="10" viewBox="0 0 24 14" fill="none"><rect x="1" y="1" width="19" height="12" rx="2.5" stroke="#fff" stroke-width="1.2"/><rect x="3" y="3" width="14" height="8" rx="1" fill="#fff"/><rect x="21.5" y="4.5" width="1.6" height="5" rx="0.8" fill="#fff"/></svg>
+            </div>
+          </div>
+
+          <!-- Header de la app -->
+          <div class="relative z-10 flex items-center justify-between px-5 pt-3">
+            <div>
+              <div class="text-[10px] text-white/40 tracking-wide">Hola,</div>
+              <div class="text-sm font-bold">Uriel 👋</div>
+            </div>
+            <div class="w-8 h-8 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e8d38a" stroke-width="1.6"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            </div>
+          </div>
+
+          <!-- Tarjeta de saldo -->
+          <div class="relative z-10 mx-5 mt-4 rounded-2xl p-4 bg-gradient-to-br from-[#1c1c22] to-black border border-gold/25">
+            <div class="text-[9px] uppercase tracking-widest text-white/40 mb-1">Saldo disponible</div>
+            <div class="text-2xl font-extrabold tracking-tight">$ •••.•••,50</div>
+            <div class="flex items-center gap-1.5 mt-2 text-[10px] font-semibold text-emerald-400">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              Rendimiento diario +$ 340
+            </div>
+          </div>
+
+          <!-- Accesos rapidos -->
+          <div class="relative z-10 grid grid-cols-4 gap-2 px-5 mt-4">
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center text-gold">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10h16M4 10l4-4M4 10l4 4M20 14H4M20 14l-4-4M20 14l-4 4"/></svg>
+              </div>
+              <span class="text-[8.5px] text-white/50">Transferir</span>
+            </div>
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="w-10 h-10 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="1"/><path d="M3 10h18M7 15h4"/></svg>
+              </div>
+              <span class="text-[8.5px] text-white/50">Pagar</span>
+            </div>
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="w-10 h-10 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+              </div>
+              <span class="text-[8.5px] text-white/50">Tarjetas</span>
+            </div>
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="w-10 h-10 rounded-full bg-white/8 flex items-center justify-center text-white/70">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+              </div>
+              <span class="text-[8.5px] text-white/50">Más</span>
+            </div>
+          </div>
+
+          <!-- Movimientos recientes -->
+          <div class="relative z-10 px-5 mt-5">
+            <div class="text-[10px] uppercase tracking-widest text-white/35 mb-2">Movimientos</div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-emerald-400/15 flex items-center justify-center text-emerald-400">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  </div>
+                  <span class="text-[10px] text-white/70">Sueldo</span>
+                </div>
+                <span class="text-[10px] font-semibold text-emerald-400">+$120.000</span>
+              </div>
+              <div class="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/60">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                  </div>
+                  <span class="text-[10px] text-white/70">Netflix</span>
+                </div>
+                <span class="text-[10px] font-semibold text-white/60">-$4.200</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab bar inferior -->
+          <div class="absolute bottom-0 inset-x-0 flex items-center justify-around py-3 border-t border-white/8 bg-black/40 backdrop-blur">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8d38a" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+          </div>
+
+          <!-- Home indicator -->
+          <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-28 h-1 rounded-full bg-white/25"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SEGURIDAD ============================== -->
+<section class="relative py-28 lg:py-36 bg-white/[0.015]" id="seguridad">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 grid lg:grid-cols-2 gap-16 items-center">
+    <div class="reveal-side" data-dir="left">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">Seguridad</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">Tu seguridad es nuestra prioridad</h2>
+      <p class="text-white/55 text-lg leading-relaxed mb-8 max-w-md">
+        Combinamos autenticación biométrica, monitoreo de fraude en tiempo real
+        y cifrado de extremo a extremo en cada operación.
+      </p>
+      <div class="glass rounded-3xl p-7">
+        <div class="font-semibold mb-4">Recomendaciones para vos</div>
+        <ul class="space-y-3 text-sm text-white/55 leading-relaxed">
+          <li class="flex gap-3"><span class="text-gold">→</span>HackerBank ya no usa contraseñas: accedés de forma simple y segura con tu biometría.</li>
+          <li class="flex gap-3"><span class="text-gold">→</span>No compartas tu dispositivo de acceso ni tu biometría con terceros.</li>
+          <li class="flex gap-3"><span class="text-gold">→</span>Verificá siempre que la URL empiece con el dominio oficial antes de ingresar tus datos.</li>
+          <li class="flex gap-3"><span class="text-gold">→</span>Ante cualquier consulta, contactanos solo por los canales oficiales listados abajo.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="reveal-side flex justify-center" data-dir="right">
+      <div id="shield-wrap" class="relative w-64 h-72 flex items-center justify-center">
+        <svg viewBox="0 0 260 300" class="w-64 h-72 overflow-visible" xmlns="http://www.w3.org/2000/svg">
+          <!-- Anillos tipo radar, laten en bucle todo el tiempo -->
+          <circle class="radar-ring" cx="130" cy="150" r="34" fill="none" stroke="#c9a84c" stroke-width="2"/>
+          <circle class="radar-ring" cx="130" cy="150" r="34" fill="none" stroke="#c9a84c" stroke-width="2"/>
+          <circle class="radar-ring" cx="130" cy="150" r="34" fill="none" stroke="#c9a84c" stroke-width="2"/>
+
+          <!-- Escudo: se dibuja solo a medida que entra en pantalla con el scroll -->
+          <path id="shield-outline" d="M130 14 L226 48 V140 C226 206 188 249 130 284 C72 249 34 206 34 140 V48 Z"
+            fill="#c9a84c" fill-opacity="0.05" stroke="#c9a84c" stroke-width="4" stroke-linejoin="round"/>
+
+          <!-- Check interior, se dibuja justo despues del contorno -->
+          <path id="shield-check" d="M84 146 L116 178 L182 102" fill="none" stroke="#f5f5f7" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FAQ ============================== -->
+<section class="relative py-28 lg:py-36" id="ayuda">
+  <div class="max-w-4xl mx-auto px-6 lg:px-10">
+    <div class="mb-16 reveal-up">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">Ayuda</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight">Preguntas frecuentes</h2>
+    </div>
+
+    <div class="space-y-3">
+      <details class="faq-item glass rounded-2xl px-6 py-1 open:pb-2" open>
+        <summary class="flex items-center justify-between py-5 cursor-pointer select-none font-medium">
+          ¿Cómo abro una cuenta en HackerBank?
+          <span class="faq-chevron text-gold text-xl leading-none transition-transform duration-300">+</span>
+        </summary>
+        <div class="faq-answer"><div class="text-white/50 pb-5 leading-relaxed">Ingresá con tu email y contraseña, verificá tu identidad y en minutos vas a tener tu CBU y alias listos para usar.</div></div>
+      </details>
+      <details class="faq-item glass rounded-2xl px-6 py-1">
+        <summary class="flex items-center justify-between py-5 cursor-pointer select-none font-medium">
+          ¿Tiene costo el mantenimiento de la cuenta?
+          <span class="faq-chevron text-gold text-xl leading-none transition-transform duration-300">+</span>
+        </summary>
+        <div class="faq-answer"><div class="text-white/50 pb-5 leading-relaxed">No. La cuenta HackerBank no tiene costo de mantenimiento y las tarjetas están bonificadas durante el primer año.</div></div>
+      </details>
+      <details class="faq-item glass rounded-2xl px-6 py-1">
+        <summary class="flex items-center justify-between py-5 cursor-pointer select-none font-medium">
+          ¿Qué hago si sospecho de un fraude?
+          <span class="faq-chevron text-gold text-xl leading-none transition-transform duration-300">+</span>
+        </summary>
+        <div class="faq-answer"><div class="text-white/50 pb-5 leading-relaxed">Comunicate de inmediato a nuestra línea de atención o bloqueá tu tarjeta desde la app. Nunca vamos a pedirte tu clave para resolverlo.</div></div>
+      </details>
+      <details class="faq-item glass rounded-2xl px-6 py-1">
+        <summary class="flex items-center justify-between py-5 cursor-pointer select-none font-medium">
+          ¿Necesito una contraseña para entrar?
+          <span class="faq-chevron text-gold text-xl leading-none transition-transform duration-300">+</span>
+        </summary>
+        <div class="faq-answer"><div class="text-white/50 pb-5 leading-relaxed">No. Accedés directamente con tu huella o tu rostro, sin contraseñas que recordar ni que se te puedan robar.</div></div>
+      </details>
+      <details class="faq-item glass rounded-2xl px-6 py-1">
+        <summary class="flex items-center justify-between py-5 cursor-pointer select-none font-medium">
+          ¿Puedo operar en dólares?
+          <span class="faq-chevron text-gold text-xl leading-none transition-transform duration-300">+</span>
+        </summary>
+        <div class="faq-answer"><div class="text-white/50 pb-5 leading-relaxed">Sí, todas las cuentas permiten operar en pesos y dólares, con cotización actualizada dentro de la app.</div></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SUCURSALES ============================== -->
+<section class="relative py-28 lg:py-36 bg-white/[0.015]" id="sucursales">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10">
+    <div class="max-w-2xl mb-16 reveal-up">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-4">Sucursales y atención</div>
+      <h2 class="text-4xl lg:text-5xl font-extrabold leading-tight mb-5">Estamos donde nos necesités</h2>
+      <p class="text-white/55 text-lg leading-relaxed">
+        Atención telefónica: <b class="text-white">{{ support_phone }}</b><br>
+        {{ support_hours }}
+      </p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {% for branch in branches %}
+      <div class="product-reveal glass rounded-2xl p-6">
+        <div class="flex items-center gap-2 font-semibold mb-2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.8"><path d="M12 21s7-7.5 7-12a7 7 0 10-14 0c0 4.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          {{ branch.name }}
+        </div>
+        <div class="text-white/50 text-sm">{{ branch.address }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ============================== TRUST STRIP ============================== -->
+<div class="relative py-20 border-t border-white/8">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 grid sm:grid-cols-3 gap-10">
+    <div class="reveal-up text-center sm:text-left">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-4 mx-auto sm:mx-0"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg>
+      <div class="font-semibold mb-1">Entidad Financiera N.° 000</div>
+      <div class="text-white/45 text-sm">Registro ilustrativo. HackerBank es un banco de demostración.</div>
+    </div>
+    <div class="reveal-up text-center sm:text-left">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-4 mx-auto sm:mx-0"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z"/></svg>
+      <div class="font-semibold mb-1">Garantía de depósitos</div>
+      <div class="text-white/45 text-sm">Sistema de garantía simulado, hasta el tope vigente por titular.</div>
+    </div>
+    <div class="reveal-up text-center sm:text-left">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="1.4" class="mb-4 mx-auto sm:mx-0"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l3 3 5-6"/></svg>
+      <div class="font-semibold mb-1">Auditado anualmente</div>
+      <div class="text-white/45 text-sm">Procesos revisados por un comité de seguridad independiente.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="relative border-t border-white/8 pt-20 pb-10">
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+    <div>
+      <div class="text-lg font-bold tracking-widest uppercase mb-4">Hacker<span class="text-gradient-gold">Bank</span></div>
+      <p class="text-white/45 text-sm leading-relaxed max-w-xs">
+        Banco digital pensado para acompañarte en cada movimiento. Casa Central:
+        Av. Colón 145, Córdoba, Argentina.
+      </p>
+    </div>
+    <div>
+      <div class="text-xs uppercase tracking-widest text-white/40 mb-4">Productos</div>
+      <div class="flex flex-col gap-3 text-sm text-white/60">
+        <a href="#productos" class="hover:text-white transition-colors">Tarjetas</a>
+        <a href="#productos" class="hover:text-white transition-colors">Préstamos personales</a>
+        <a href="#productos" class="hover:text-white transition-colors">Plazo fijo</a>
+        <a href="#productos" class="hover:text-white transition-colors">Seguros</a>
+      </div>
+    </div>
+    <div>
+      <div class="text-xs uppercase tracking-widest text-white/40 mb-4">Ayuda</div>
+      <div class="flex flex-col gap-3 text-sm text-white/60">
+        <a href="#ayuda" class="hover:text-white transition-colors">Preguntas frecuentes</a>
+        <a href="#sucursales" class="hover:text-white transition-colors">Sucursales y cajeros</a>
+        <a href="#sucursales" class="hover:text-white transition-colors">Contacto</a>
+      </div>
+    </div>
+    <div>
+      <div class="text-xs uppercase tracking-widest text-white/40 mb-4">Legal</div>
+      <div class="flex flex-col gap-3 text-sm text-white/45">
+        <span>CUIT 30-71234567-8</span>
+        <span>Entidad Financiera N.° 000 (ficticia)</span>
+        <span>Adherida al Sistema de Garantía de Depósitos (simulado)</span>
+      </div>
+    </div>
+  </div>
+  <div class="max-w-7xl mx-auto px-6 lg:px-10 pt-8 border-t border-white/8 text-xs text-white/35 leading-relaxed">
+    HackerBank es un banco ficticio de demostración. No es una entidad financiera real ni
+    está regulada por el BCRA.
+  </div>
+</footer>
+
+<script>
+(function () {
+  // --- Nav: solid background on scroll + mobile toggle ---
+  const nav = document.getElementById('site-nav');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 40) {
+      nav.classList.add('bg-black/70', 'backdrop-blur-xl', 'border-white/10');
+    } else {
+      nav.classList.remove('bg-black/70', 'backdrop-blur-xl', 'border-white/10');
+    }
+  });
+
+  const toggle = document.getElementById('nav-toggle');
+  const menu = document.getElementById('mobile-menu');
+  const bar1 = document.getElementById('bar1');
+  const bar2 = document.getElementById('bar2');
+  const bar3 = document.getElementById('bar3');
+  let menuOpen = false;
+  function setMenu(open) {
+    menuOpen = open;
+    toggle.setAttribute('aria-expanded', String(open));
+    menu.style.maxHeight = open ? menu.scrollHeight + 'px' : '0px';
+    menu.style.opacity = open ? '1' : '0';
+    bar1.style.transform = open ? 'translateY(6px) rotate(45deg)' : 'none';
+    bar3.style.transform = open ? 'translateY(-6px) rotate(-45deg)' : 'none';
+    bar2.style.opacity = open ? '0' : '1';
+  }
+  toggle.addEventListener('click', () => setMenu(!menuOpen));
+  menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setMenu(false)));
+
+  // --- GSAP animations ---
+  gsap.registerPlugin(ScrollTrigger);
+
+  const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+  heroTl
+    .from('#hero-badge', { opacity: 0, y: -14, duration: 0.6 })
+    .from('.hero-line', { opacity: 0, y: 40, duration: 0.9, stagger: 0.15 }, '-=0.3')
+    .from('#hero-sub', { opacity: 0, y: 24, duration: 0.8 }, '-=0.5')
+    .from('#hero-phone-spin', { opacity: 0, y: 40, duration: 1 }, '-=0.6');
+
+  // Celular gigante del hero: da una vuelta completa sobre su eje mientras se scrollea el hero
+  if (document.getElementById('hero-phone-spin')) {
+    gsap.to('#hero-phone-spin', {
+      rotateY: 360,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: 'header',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1,
+      },
+    });
+  }
+
+  // Card: parallax (moves slower than page) + subtle 3D rotation while scrolling through its section
+  gsap.to('#card-parallax-wrap', {
+    y: -90,
+    ease: 'none',
+    scrollTrigger: {
+      trigger: '#card-parallax-wrap',
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: 1,
+    },
+  });
+
+  gsap.fromTo(
+    '#bank-card',
+    { rotateY: -28, rotateX: 8, y: 30 },
+    {
+      rotateY: 18,
+      rotateX: -4,
+      y: -20,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '#card-parallax-wrap',
+        start: 'top bottom',
+        end: 'bottom top',
+        scrub: 1.2,
+      },
+    }
+  );
+
+  gsap.from('#card-copy', {
+    opacity: 0,
+    y: 30,
+    duration: 1,
+    scrollTrigger: { trigger: '#card-copy', start: 'top 75%' },
+  });
+
+  // Feature cards + generic side-reveal elements slide in from left/right
+  document.querySelectorAll('.reveal-side').forEach((el) => {
+    const dir = el.dataset.dir === 'right' ? 90 : -90;
+    gsap.fromTo(
+      el,
+      { opacity: 0, x: dir },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 1,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: el, start: 'top 85%' },
+      }
+    );
+  });
+
+  // Escudo de Seguridad: se "dibuja" a si mismo a medida que se scrollea hacia el
+  // (el contorno traza primero; el check recien arranca cuando el contorno va por la mitad)
+  [
+    { sel: '#shield-outline', start: 'top 88%', end: 'top 55%' },
+    { sel: '#shield-check', start: 'top 65%', end: 'top 30%' },
+  ].forEach(({ sel, start, end }) => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    const length = el.getTotalLength();
+    el.style.strokeDasharray = length;
+    el.style.strokeDashoffset = length;
+    gsap.to(el, {
+      strokeDashoffset: 0,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '#shield-wrap',
+        start,
+        end,
+        scrub: 1,
+      },
+    });
+  });
+
+  // Product / branch cards + section titles: soft fade-up reveal
+  gsap.utils.toArray('.product-reveal').forEach((el, i) => {
+    gsap.from(el, {
+      opacity: 0,
+      y: 40,
+      duration: 0.8,
+      delay: (i % 4) * 0.08,
+      ease: 'power3.out',
+      scrollTrigger: { trigger: el, start: 'top 88%' },
+    });
+  });
+
+  gsap.utils.toArray('.reveal-up').forEach((el) => {
+    gsap.from(el, {
+      opacity: 0,
+      y: 30,
+      duration: 0.9,
+      ease: 'power3.out',
+      scrollTrigger: { trigger: el, start: 'top 85%' },
+    });
+  });
+
+  // Phone mockup: parallax vertical al scrollear + inclinacion 3D con vaiven continuo (divertido)
+  gsap.to('#phone-parallax', {
+    y: -50,
+    ease: 'none',
+    scrollTrigger: {
+      trigger: '#phone-parallax',
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: 1,
+    },
+  });
+
+  if (document.getElementById('phone-tilt')) {
+    gsap.set('#phone-tilt', { rotateY: -16, rotateX: 7, transformPerspective: 1800 });
+    gsap.to('#phone-tilt', {
+      rotateY: -6,
+      rotateX: 1,
+      y: -20,
+      rotateZ: 1.5,
+      duration: 3.4,
+      ease: 'sine.inOut',
+      repeat: -1,
+      yoyo: true,
+    });
+  }
+})();
+</script>
+</body>
+</html>

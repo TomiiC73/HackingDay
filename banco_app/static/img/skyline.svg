@@ -1,0 +1,205 @@
+<svg viewBox="0 0 1920 460" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="28%" r="55%">
+      <stop offset="0%" stop-color="#a9822f" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#a9822f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Resplandor suave detras del skyline -->
+  <ellipse cx="960" cy="140" rx="520" ry="230" fill="url(#glow)"/>
+
+  <!-- Nubes -->
+  <g fill="#0f2340" fill-opacity="0.05">
+    <ellipse cx="420" cy="70" rx="70" ry="18"/>
+    <ellipse cx="470" cy="60" rx="50" ry="15"/>
+    <ellipse cx="380" cy="62" rx="45" ry="13"/>
+    <ellipse cx="1420" cy="90" rx="80" ry="20"/>
+    <ellipse cx="1480" cy="78" rx="55" ry="16"/>
+    <ellipse cx="1370" cy="82" rx="42" ry="12"/>
+    <ellipse cx="850" cy="45" rx="60" ry="14"/>
+    <ellipse cx="900" cy="38" rx="40" ry="11"/>
+  </g>
+
+  <!-- Aves lejanas -->
+  <g stroke="#0f2340" stroke-opacity="0.28" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M120,70 q8,-12 16,0 q8,-12 16,0"/>
+    <path d="M180,95 q7,-10 14,0 q7,-10 14,0"/>
+    <path d="M1680,60 q8,-12 16,0 q8,-12 16,0"/>
+    <path d="M1750,90 q7,-10 14,0 q7,-10 14,0"/>
+    <path d="M1000,50 q7,-10 14,0 q7,-10 14,0"/>
+  </g>
+
+  <!-- Distrito financiero de fondo (edificios lejanos, mas tenues) -->
+  <g fill="#0f2340" fill-opacity="0.14">
+    <rect x="0" y="220" width="70" height="240"/>
+    <rect x="90" y="180" width="55" height="280"/>
+    <rect x="160" y="250" width="90" height="210"/>
+    <rect x="270" y="150" width="60" height="310"/>
+    <rect x="345" y="200" width="75" height="260"/>
+    <rect x="500" y="240" width="65" height="220"/>
+    <rect x="580" y="270" width="55" height="190"/>
+    <rect x="1280" y="230" width="60" height="230"/>
+    <rect x="1500" y="190" width="65" height="270"/>
+    <rect x="1580" y="240" width="85" height="220"/>
+    <rect x="1680" y="160" width="60" height="300"/>
+    <rect x="1755" y="210" width="70" height="250"/>
+    <rect x="1840" y="170" width="80" height="290"/>
+  </g>
+  <g fill="#a9822f" fill-opacity="0.30">
+    <rect x="272" y="170" width="8" height="11"/>
+    <rect x="292" y="170" width="8" height="11"/>
+    <rect x="272" y="200" width="8" height="11"/>
+    <rect x="1685" y="180" width="8" height="11"/>
+    <rect x="1705" y="180" width="8" height="11"/>
+  </g>
+
+  <!-- Antena en la torre mas alta del fondo -->
+  <rect x="298" y="110" width="4" height="42" fill="#0f2340" fill-opacity="0.20"/>
+  <circle cx="300" cy="108" r="4" fill="#a9822f" fill-opacity="0.35"/>
+
+  <!-- Edificios intermedios -->
+  <g fill="#0f2340" fill-opacity="0.28">
+    <rect x="30" y="270" width="80" height="190"/>
+    <rect x="440" y="230" width="70" height="230"/>
+    <rect x="640" y="290" width="55" height="170"/>
+    <rect x="1030" y="260" width="50" height="200"/>
+    <rect x="1370" y="220" width="75" height="240"/>
+    <rect x="1450" y="260" width="60" height="200"/>
+    <rect x="1620" y="280" width="60" height="180"/>
+    <rect x="1780" y="240" width="70" height="220"/>
+  </g>
+  <g fill="#a9822f" fill-opacity="0.28">
+    <rect x="45" y="290" width="9" height="12"/>
+    <rect x="65" y="290" width="9" height="12"/>
+    <rect x="45" y="320" width="9" height="12"/>
+    <rect x="65" y="320" width="9" height="12"/>
+    <rect x="455" y="250" width="8" height="11"/>
+    <rect x="475" y="250" width="8" height="11"/>
+    <rect x="455" y="280" width="8" height="11"/>
+    <rect x="1385" y="240" width="8" height="11"/>
+    <rect x="1405" y="240" width="8" height="11"/>
+    <rect x="1385" y="270" width="8" height="11"/>
+    <rect x="1795" y="260" width="8" height="11"/>
+    <rect x="1815" y="260" width="8" height="11"/>
+  </g>
+
+  <!-- Fachada bancaria clasica, en el centro (columnas + fronton + bandera) -->
+  <g fill="#0f2340" fill-opacity="0.58">
+    <polygon points="760,300 960,300 1020,340 700,340"/>
+    <rect x="700" y="336" width="320" height="8"/>
+    <rect x="710" y="344" width="30" height="116"/>
+    <rect x="770" y="344" width="30" height="116"/>
+    <rect x="830" y="344" width="30" height="116"/>
+    <rect x="890" y="344" width="30" height="116"/>
+    <rect x="950" y="344" width="30" height="116"/>
+    <rect x="680" y="452" width="360" height="8"/>
+    <rect x="670" y="460" width="380" height="10"/>
+  </g>
+  <g fill="#a9822f" fill-opacity="0.5">
+    <rect x="858" y="258" width="4" height="42"/>
+    <path d="M862,258 L900,270 L862,282 Z"/>
+  </g>
+  <!-- Escalinata de acceso -->
+  <g fill="#0f2340" fill-opacity="0.22">
+    <rect x="760" y="456" width="200" height="4"/>
+    <rect x="750" y="462" width="220" height="4"/>
+  </g>
+
+  <!-- Torres cercanas, mas oscuras y definidas -->
+  <g fill="#0f2340" fill-opacity="0.55">
+    <rect x="150" y="300" width="110" height="160"/>
+    <rect x="290" y="260" width="90" height="200"/>
+    <rect x="1080" y="270" width="100" height="190"/>
+    <rect x="1210" y="310" width="120" height="150"/>
+    <rect x="1350" y="290" width="90" height="170"/>
+  </g>
+
+  <!-- Detalles de azotea: antena, tanque y unidades de aire -->
+  <g fill="#0f2340" fill-opacity="0.5">
+    <rect x="1268" y="270" width="4" height="40"/>
+    <circle cx="1270" cy="266" r="3" fill="#a9822f" fill-opacity="0.55"/>
+    <rect x="330" y="248" width="18" height="12"/>
+    <rect x="200" y="288" width="20" height="12"/>
+    <rect x="1395" y="278" width="16" height="10"/>
+  </g>
+
+  <!-- Ventanas iluminadas (detalle dorado) -->
+  <g fill="#a9822f" fill-opacity="0.55">
+    <rect x="165" y="315" width="10" height="14"/>
+    <rect x="185" y="315" width="10" height="14"/>
+    <rect x="205" y="315" width="10" height="14"/>
+    <rect x="225" y="315" width="10" height="14"/>
+    <rect x="165" y="345" width="10" height="14"/>
+    <rect x="205" y="345" width="10" height="14"/>
+    <rect x="225" y="345" width="10" height="14"/>
+    <rect x="165" y="375" width="10" height="14"/>
+    <rect x="185" y="375" width="10" height="14"/>
+    <rect x="225" y="375" width="10" height="14"/>
+    <rect x="165" y="405" width="10" height="14"/>
+    <rect x="205" y="405" width="10" height="14"/>
+
+    <rect x="305" y="280" width="9" height="13"/>
+    <rect x="325" y="280" width="9" height="13"/>
+    <rect x="345" y="280" width="9" height="13"/>
+    <rect x="305" y="310" width="9" height="13"/>
+    <rect x="345" y="310" width="9" height="13"/>
+    <rect x="305" y="340" width="9" height="13"/>
+    <rect x="325" y="340" width="9" height="13"/>
+    <rect x="345" y="370" width="9" height="13"/>
+    <rect x="305" y="400" width="9" height="13"/>
+
+    <rect x="1095" y="290" width="10" height="14"/>
+    <rect x="1120" y="290" width="10" height="14"/>
+    <rect x="1145" y="290" width="10" height="14"/>
+    <rect x="1165" y="290" width="10" height="14"/>
+    <rect x="1095" y="320" width="10" height="14"/>
+    <rect x="1145" y="320" width="10" height="14"/>
+    <rect x="1165" y="320" width="10" height="14"/>
+    <rect x="1095" y="350" width="10" height="14"/>
+    <rect x="1120" y="350" width="10" height="14"/>
+    <rect x="1165" y="380" width="10" height="14"/>
+
+    <rect x="1225" y="330" width="10" height="14"/>
+    <rect x="1250" y="330" width="10" height="14"/>
+    <rect x="1275" y="330" width="10" height="14"/>
+    <rect x="1300" y="330" width="10" height="14"/>
+    <rect x="1225" y="360" width="10" height="14"/>
+    <rect x="1275" y="360" width="10" height="14"/>
+    <rect x="1300" y="360" width="10" height="14"/>
+    <rect x="1250" y="390" width="10" height="14"/>
+    <rect x="1300" y="390" width="10" height="14"/>
+
+    <rect x="1365" y="310" width="9" height="13"/>
+    <rect x="1385" y="310" width="9" height="13"/>
+    <rect x="1405" y="310" width="9" height="13"/>
+    <rect x="1365" y="340" width="9" height="13"/>
+    <rect x="1405" y="340" width="9" height="13"/>
+    <rect x="1385" y="370" width="9" height="13"/>
+  </g>
+
+  <!-- Ventanas mas tenues (brillo variable, sensacion de parpadeo nocturno) -->
+  <g fill="#a9822f" fill-opacity="0.22">
+    <rect x="185" y="345" width="10" height="14"/>
+    <rect x="205" y="375" width="10" height="14"/>
+    <rect x="325" y="310" width="9" height="13"/>
+    <rect x="1120" y="320" width="10" height="14"/>
+    <rect x="1250" y="360" width="10" height="14"/>
+    <rect x="1385" y="340" width="9" height="13"/>
+  </g>
+
+  <!-- Linea de suelo -->
+  <rect x="0" y="456" width="1920" height="4" fill="#0f2340" fill-opacity="0.35"/>
+
+  <!-- Arboles a nivel de calle -->
+  <g fill="#0f2340" fill-opacity="0.28">
+    <rect x="60" y="440" width="4" height="18"/>
+    <circle cx="62" cy="432" r="14"/>
+    <rect x="1850" y="440" width="4" height="18"/>
+    <circle cx="1852" cy="432" r="14"/>
+    <rect x="480" y="444" width="3" height="14"/>
+    <circle cx="481" cy="438" r="11"/>
+    <rect x="1450" y="444" width="3" height="14"/>
+    <circle cx="1451" cy="438" r="11"/>
+  </g>
+</svg>

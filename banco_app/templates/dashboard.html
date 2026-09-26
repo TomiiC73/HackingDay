@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi cuenta — HackerBank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        colors: { gold: { DEFAULT: '#c9a84c', light: '#e8d38a', dark: '#8f6f27' } },
+      },
+    },
+  };
+</script>
+<style>
+  html, body { background: #050507; color: #f5f5f7; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+  .glass { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+  .glow { position: absolute; border-radius: 9999px; filter: blur(110px); pointer-events: none; }
+  .text-gradient-gold { background: linear-gradient(95deg, #f3e3b4 0%, #c9a84c 45%, #8f6f27 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .flag-code { font-family: Consolas, ui-monospace, monospace; letter-spacing: 0.06em; }
+</style>
+</head>
+<body class="antialiased min-h-screen">
+
+<!-- Nav -->
+<nav class="border-b border-white/8">
+  <div class="max-w-6xl mx-auto px-6 lg:px-10 flex items-center justify-between h-18 py-4">
+    <a href="{{ url_for('landing') }}" class="flex items-center gap-2.5 text-base font-bold tracking-[0.2em] uppercase">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 2L29 9V23L16 30L3 23V9L16 2Z" stroke="#c9a84c" stroke-width="1.4"/>
+        <path d="M16 9L22 12.5V19.5L16 23L10 19.5V12.5L16 9Z" stroke="#f5f5f7" stroke-opacity="0.7" stroke-width="1.2"/>
+      </svg>
+      <span>Hacker<span class="text-gradient-gold">Bank</span></span>
+    </a>
+    <a href="{{ url_for('logout') }}" class="text-sm text-white/60 hover:text-white transition-colors">Cerrar sesión</a>
+  </div>
+</nav>
+
+<div class="relative overflow-hidden">
+  <div class="glow w-[520px] h-[520px] bg-gold/10 -top-40 right-0"></div>
+
+  <main class="relative max-w-6xl mx-auto px-6 lg:px-10 py-12 lg:py-16">
+
+    <!-- Encabezado -->
+    <div class="mb-10">
+      <div class="text-sm text-white/45 tracking-wide">Bienvenido de nuevo,</div>
+      <h1 class="text-3xl lg:text-4xl font-extrabold tracking-tight mt-1">{{ user.display_name }}</h1>
+      <div class="mt-2 inline-flex items-center gap-2 text-xs uppercase tracking-widest {{ 'text-gold' if is_ceo else 'text-white/40' }}">
+        <span class="w-1.5 h-1.5 rounded-full {{ 'bg-gold' if is_ceo else 'bg-white/40' }}"></span>
+        {{ 'Cuenta ejecutiva' if is_ceo else 'Cuenta de práctica' }} · @{{ user.username }}
+      </div>
+    </div>
+
+    {% if is_ceo %}
+    <!-- ================== FLAG (código ganador del CEO) ================== -->
+    <section class="mb-10 rounded-3xl border border-gold/40 bg-gradient-to-br from-gold/[0.12] to-transparent p-8">
+      <div class="flex items-center gap-2 text-gold text-xs uppercase tracking-[0.2em] mb-3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15V4h13l-2 3 2 3H6"/><path d="M6 21v-6"/></svg>
+        Desafío resuelto — cuenta del CEO comprometida
+      </div>
+      <h2 class="text-2xl font-extrabold mb-2">Código ganador</h2>
+      <p class="text-white/55 text-sm mb-5 max-w-2xl">
+        Entraste como <b class="text-white/80">{{ user.display_name }}</b> sin
+        ser el dueño de su clave. Copiá este código como comprobante de que
+        completaste el desafío:
+      </p>
+      <div class="inline-flex items-center gap-3 rounded-xl bg-black/50 border border-gold/30 px-5 py-3">
+        <span class="flag-code text-lg sm:text-xl text-gold">{{ winning_code }}</span>
+      </div>
+    </section>
+    {% else %}
+    <!-- Nota para la cuenta de práctica -->
+    <section class="mb-10 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-sm text-white/55 leading-relaxed">
+      Esta es la <b class="text-white/80">cuenta de práctica</b>. Usala para
+      entender el flujo passwordless (challenge → firma → verify). Tu objetivo
+      en el desafío es conseguir acceder a la cuenta del <b class="text-white/80">CEO</b>
+      y leer el código ganador que aparece ahí.
+    </section>
+    {% endif %}
+
+    <!-- ================== Datos de la cuenta ================== -->
+    <div class="grid lg:grid-cols-3 gap-6 mb-12">
+      <div class="glass rounded-3xl p-7 lg:col-span-2">
+        <div class="text-[11px] uppercase tracking-widest text-white/40 mb-2">Saldo disponible</div>
+        <div class="text-4xl font-extrabold tracking-tight">$ {{ user.balance_ars | currency }}</div>
+        <div class="mt-2 text-sm text-white/45">{{ user.account_note }}</div>
+
+        <div class="grid sm:grid-cols-2 gap-x-8 gap-y-4 mt-8 pt-6 border-t border-white/10 text-sm">
+          <div>
+            <div class="text-white/40 text-xs uppercase tracking-widest mb-1">CBU</div>
+            <div class="font-mono text-white/80">{{ user.cbu }}</div>
+          </div>
+          <div>
+            <div class="text-white/40 text-xs uppercase tracking-widest mb-1">Alias</div>
+            <div class="text-white/80">{{ user.alias }}</div>
+          </div>
+          <div>
+            <div class="text-white/40 text-xs uppercase tracking-widest mb-1">Tipo de cuenta</div>
+            <div class="text-white/80">{{ account.account_type }}</div>
+          </div>
+          <div>
+            <div class="text-white/40 text-xs uppercase tracking-widest mb-1">Sucursal</div>
+            <div class="text-white/80">{{ account.branch }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass rounded-3xl p-7 flex flex-col justify-between">
+        <div>
+          <div class="text-[11px] uppercase tracking-widest text-white/40 mb-2">Estado</div>
+          <div class="flex items-center gap-2 text-emerald-400 font-semibold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>{{ account.status }}
+          </div>
+          <div class="mt-6 text-[11px] uppercase tracking-widest text-white/40 mb-2">BIC / SWIFT</div>
+          <div class="font-mono text-white/80">{{ account.bic }}</div>
+        </div>
+        <div class="mt-6 text-[11px] uppercase tracking-widest text-white/40">ID de cliente</div>
+        <div class="font-mono text-white/80 text-lg">{{ user.id }}</div>
+      </div>
+    </div>
+
+    {% if is_ceo %}
+    <!-- ================== Pantalla comparativa: trucho vs FIDO2 real ================== -->
+    <section class="mb-4">
+      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-3">Lo que aprendiste</div>
+      <h2 class="text-3xl font-extrabold leading-tight mb-4">Por qué esto no pasaría con FIDO2 real</h2>
+      <p class="text-white/55 leading-relaxed max-w-3xl mb-8">
+        Cada cosa que rompiste en este desafío es exactamente lo que
+        FIDO2/WebAuthn hace imposible por diseño. El pecado capital fue tener
+        una clave privada accesible por la red. En FIDO2 real esa clave vive en
+        hardware inextraíble (TPM / Secure Enclave) y nunca sale del dispositivo.
+      </p>
+
+      <div class="glass rounded-3xl overflow-hidden">
+        <div class="grid grid-cols-2 text-sm">
+          <div class="px-6 py-4 font-bold text-red-300 border-b border-white/10 bg-red-500/5">Lo que rompiste (FIDO2 de cartón)</div>
+          <div class="px-6 py-4 font-bold text-emerald-300 border-b border-white/10 bg-emerald-500/5">Cómo lo previene FIDO2 real</div>
+
+          {% set rows = [
+            ('Descargaste la clave privada del CEO por la red', 'La clave nunca sale del TPM — es físicamente inextraíble'),
+            ('La clave estaba ofuscada, no cifrada de verdad', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
+            ('Firmaste el challenge como si fueras el CEO', 'La firma exige presencia física + verificación biométrica en hardware'),
+            ('El endpoint no validó autorización (IDOR)', 'La clave no existe fuera del dispositivo: no hay endpoint que exponer'),
+            ('Todo el flujo es suplantable remotamente', 'FIDO2 ata cada firma al origin (dominio) → resistente a phishing'),
+          ] %}
+          {% for bad, good in rows %}
+          <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ bad }}</div>
+          <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ good }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if is_ceo %}
+  {# Diagrama de secuencia del flujo FIDO2 real, como cierre pedagogico. #}
+  {% include "_fido2_diagram.html" %}
+  {% endif %}
+</div>
+
+</body>
+</html>

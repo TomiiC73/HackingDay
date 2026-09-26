@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login passwordless — HackerBank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        colors: { gold: { DEFAULT: '#c9a84c', light: '#e8d38a', dark: '#8f6f27' } },
+      },
+    },
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  html, body { background: #050507; color: #f5f5f7; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+
+  .glow { position: absolute; border-radius: 9999px; filter: blur(110px); pointer-events: none; }
+
+  .grid-fade {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(ellipse 65% 65% at 20% 40%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 65% 65% at 20% 40%, #000 40%, transparent 100%);
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .field input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.9rem;
+    padding: 0.85rem 1rem;
+    color: #f5f5f7;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .field input:focus { border-color: #c9a84c; background: rgba(255, 255, 255, 0.06); }
+  .field label { display: block; font-size: 0.8rem; color: rgba(245,245,247,0.5); margin-bottom: 0.5rem; }
+
+  .text-gradient-gold {
+    background: linear-gradient(95deg, #f3e3b4 0%, #c9a84c 45%, #8f6f27 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Scanner biometrico cosmetico */
+  .scan-orb {
+    position: relative;
+    width: 128px; height: 128px;
+    border-radius: 9999px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #c9a84c;
+    background: radial-gradient(circle at 50% 40%, rgba(201,168,76,0.18), rgba(201,168,76,0.03) 70%);
+    border: 1px solid rgba(201,168,76,0.4);
+    transition: transform .15s ease, box-shadow .2s ease;
+  }
+  .scan-orb:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(201,168,76,0.35); }
+  button:disabled .scan-orb { opacity: 0.6; cursor: progress; }
+  .scan-orb::after {
+    content: ""; position: absolute; inset: -6px;
+    border-radius: 9999px; border: 1px solid rgba(201,168,76,0.3);
+    animation: scanPulse 2.4s ease-out infinite;
+  }
+  @keyframes scanPulse {
+    0% { transform: scale(0.85); opacity: 0.6; }
+    100% { transform: scale(1.35); opacity: 0; }
+  }
+
+  #login-status { min-height: 1.25rem; font-size: 0.85rem; transition: color .2s ease; }
+  #login-status[data-kind="info"]  { color: rgba(245,245,247,0.55); }
+  #login-status[data-kind="ok"]    { color: #6ee7a8; }
+  #login-status[data-kind="error"] { color: #ff9a9c; }
+</style>
+</head>
+<body class="antialiased min-h-screen">
+
+<a href="{{ url_for('landing') }}" class="fixed top-6 left-6 lg:top-8 lg:left-10 z-20 flex items-center gap-2.5 text-base font-bold tracking-[0.2em] uppercase">
+  <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 2L29 9V23L16 30L3 23V9L16 2Z" stroke="#c9a84c" stroke-width="1.4"/>
+    <path d="M16 9L22 12.5V19.5L16 23L10 19.5V12.5L16 9Z" stroke="#f5f5f7" stroke-opacity="0.7" stroke-width="1.2"/>
+  </svg>
+  <span>Hacker<span class="text-gradient-gold">Bank</span></span>
+</a>
+
+<div class="relative min-h-screen flex items-center justify-center px-6 py-28 lg:py-16 overflow-hidden">
+  <div class="absolute inset-0 grid-fade"></div>
+  <div class="glow w-[520px] h-[520px] bg-gold/15 -top-40 -left-20"></div>
+  <div class="glow w-[420px] h-[420px] bg-gold/10 bottom-0 right-0"></div>
+
+  <div class="relative w-full max-w-6xl grid lg:grid-cols-2 gap-14 items-center">
+
+    <!-- Panel izquierdo: statement de marca -->
+    <div id="login-copy" class="hidden lg:block">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs tracking-[0.2em] uppercase text-white/60 mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-gold"></span>
+        Acceso passwordless
+      </div>
+      <h1 class="text-5xl font-extrabold leading-[1.05] tracking-tight mb-6">
+        Tu banco,<br><span class="text-gradient-gold">tu biometría.</span>
+      </h1>
+      <p class="text-white/55 text-lg leading-relaxed max-w-md">
+        Sin contraseñas que recordar ni robar. Escaneás tu huella o rostro y tu
+        dispositivo firma el acceso. Así de simple, así de seguro.
+      </p>
+    </div>
+
+    <!-- Panel derecho: login passwordless -->
+    <div id="login-card" class="glass rounded-3xl p-8 sm:p-10 w-full max-w-md mx-auto lg:mx-0">
+      <div class="text-2xl font-bold mb-2">Ingresar con tu biometría</div>
+      <div class="text-white/45 text-sm mb-7">Escribí tu usuario y confirmá con tu huella o rostro. No hace falta contraseña.</div>
+
+      <form id="passwordless-form" class="space-y-6">
+        <div class="field">
+          <label for="username">Usuario</label>
+          <input type="text" id="username" name="username" autocomplete="username"
+                 placeholder="alumno" value="alumno" required>
+        </div>
+
+        <div class="flex flex-col items-center gap-4 pt-2">
+          <button type="submit" id="scan-btn" aria-label="Escanear biometría" class="bg-transparent border-0 p-0">
+            <span class="scan-orb">
+              <!-- Icono de huella -->
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 11a1 1 0 011 1c0 2.5-.3 4.6-1 6.5"/>
+                <path d="M8.5 12a3.5 3.5 0 017 0c0 2.8-.4 5.2-1.2 7.3"/>
+                <path d="M5.5 13a6.5 6.5 0 0113 0c0 1.3-.1 2.5-.3 3.7"/>
+                <path d="M4.5 9.5a8 8 0 0114-.5"/>
+                <path d="M9 20.5c.6-1.9 1-4 1-6.5a2 2 0 00-2-2"/>
+              </svg>
+            </span>
+          </button>
+          <div class="text-xs text-white/40">Tocá para escanear</div>
+          <div id="login-status" data-kind="info"></div>
+        </div>
+      </form>
+
+      <div class="mt-8 pt-6 border-t border-white/10 text-xs text-white/40 leading-relaxed">
+        <b class="text-white/60">Usuarios de laboratorio:</b> <code class="text-gold">alumno</code>
+        es la cuenta de práctica para entender el flujo. Entorno educativo del
+        Hacking Day Córdoba — datos ficticios.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  gsap.from('#login-copy', { opacity: 0, x: -40, duration: 0.9, ease: 'power3.out' });
+  gsap.from('#login-card', { opacity: 0, y: 30, duration: 0.9, ease: 'power3.out', delay: 0.15 });
+</script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
