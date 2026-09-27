@@ -2,7 +2,7 @@
 Siembra de datos del CTF passwordless (HackerBank / Hacking Day Cordoba).
 
 Borra y recrea la base en CADA corrida, generando un par de claves ECDSA P-256
-nuevo para cada usuario y guardando la privada "ofuscada" (ver crypto_utils).
+nuevo para cada usuario y guardando la privada "codificada" (ver crypto_utils).
 Asi cada arranque del contenedor deja el entorno limpio y reproducible, ideal
 para resetear entre participantes.
 
@@ -53,14 +53,14 @@ def seed():
     for (user_id, username, display_name, role, balance_ars, cbu, alias,
          account_note, winning_code) in USERS:
         priv_pem, pub_pem = crypto_utils.generate_keypair_pem()
-        obfuscated = crypto_utils.obfuscate_private_key(priv_pem)
+        encoded = crypto_utils.encode_private_key(priv_pem)
         db.insert_user(
             user_id=user_id,
             username=username,
             display_name=display_name,
             role=role,
             public_key_pem=pub_pem,
-            private_key_obfuscated=obfuscated,
+            private_key=encoded,
             balance_ars=balance_ars,
             cbu=cbu,
             alias=alias,

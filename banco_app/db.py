@@ -8,7 +8,7 @@ codigo limpio en ese aspecto para que el foco pedagogico quede en el flujo
 passwordless y no se disperse.
 
 Tabla `users` (VULNERABILIDAD INTENCIONAL): guarda tanto la clave publica como
-la PRIVADA "ofuscada". En FIDO2 real solo existiria la publica.
+la PRIVADA "codificada". En FIDO2 real solo existiria la publica.
 """
 import sqlite3
 from contextlib import contextmanager
@@ -47,7 +47,7 @@ def init_db():
                 role TEXT NOT NULL,              -- 'alumno', 'ceo', 'senuelo'
                 -- Par de claves ECDSA P-256 del usuario:
                 public_key_pem TEXT NOT NULL,
-                private_key_obfuscated TEXT NOT NULL,   -- <- el pecado (Capa 2)
+                private_key TEXT NOT NULL,   -- <- el pecado (Capa 2)
                 -- Datos de presentacion de la cuenta:
                 balance_ars REAL NOT NULL DEFAULT 0,
                 cbu TEXT NOT NULL DEFAULT '',
@@ -60,19 +60,19 @@ def init_db():
 
 
 def insert_user(user_id, username, display_name, role, public_key_pem,
-                private_key_obfuscated, balance_ars, cbu, alias, account_note,
+                private_key, balance_ars, cbu, alias, account_note,
                 winning_code=None):
     with get_connection() as conn:
         conn.execute(
             """
             INSERT INTO users
                 (id, username, display_name, role, public_key_pem,
-                 private_key_obfuscated, balance_ars, cbu, alias, account_note,
+                 private_key, balance_ars, cbu, alias, account_note,
                  winning_code)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (user_id, username, display_name, role, public_key_pem,
-             private_key_obfuscated, balance_ars, cbu, alias, account_note,
+             private_key, balance_ars, cbu, alias, account_note,
              winning_code),
         )
 

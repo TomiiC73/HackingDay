@@ -23,12 +23,12 @@ landing fintech (Tailwind, oscuro/dorado, Inter) para ser inmersiva.
 ```
 banco_app/
   app.py            Rutas Flask + API del flujo passwordless (vulns marcadas con VULN)
-  config.py         Configuración (incluye OBFUSCATION_KEY, la clave del XOR)
+  config.py         Configuración (incluye BACKUP_KEY, la clave del XOR)
   db.py             DAO SQLite parametrizado
-  crypto_utils.py   ECDSA P-256: generación de claves, (des)ofuscación, verificación de firma
+  crypto_utils.py   ECDSA P-256: generación de claves, (de)codificación, verificación de firma
   seed.py           Recrea la base y siembra usuarios (alumno, ceo, señuelos) con sus claves
   solve.py          Solución de referencia (writeup ejecutable)
-  static/js/script.js   (Des)ofuscación + firma WebCrypto + flujo de login del frontend
+  static/js/script.js   (De)codificación + firma WebCrypto + flujo de login del frontend
   templates/        landing.html, login.html, dashboard.html, _fido2_diagram.html
   README.md         Para el participante
   INSTRUCTOR_GUIDE.md   Para el organizador (solución, teoría, rúbrica, montaje)
@@ -56,14 +56,14 @@ recrea la base con claves nuevas en cada arranque; no hay estado persistente).
 ## Diseño del desafío (para no romperlo sin querer)
 
 - **La cadena de ataque tiene 3 capas:** (1) reconocer el flujo `challenge →
-  keys → verify`; (2) IDOR en `GET /auth/keys/<user_id>` + des-ofuscar la clave
+  keys → verify`; (2) IDOR en `GET /auth/keys/<user_id>` + decodificar la clave
   privada leyendo `script.js`; (3) firmar un challenge del CEO con la clave
   robada y hacer `POST /auth/verify`.
 - **Cripto:** ECDSA **P-256 (secp256r1)**, la misma curva de WebAuthn real. La
   firma en el "cable" es **raw r‖s (64 bytes) en hex** (formato WebCrypto); el
   servidor la convierte a DER para verificar. Mantener esta convención: el
   frontend (`script.js`) y `solve.py` dependen de ella.
-- **Ofuscación:** `base64(XOR(base64(PEM), OBFUSCATION_KEY))`. La `OBFUSCATION_KEY`
+- **Codificación:** `base64(XOR(base64(PEM), BACKUP_KEY))`. La `BACKUP_KEY`
   está **a propósito** duplicada en `config.py` (server) y `script.js` (cliente).
   Si se cambia, cambiarla en ambos lados.
 - **user_id:** en el rango `70xx` (no 1/2) para forzar la enumeración; la

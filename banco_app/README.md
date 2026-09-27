@@ -33,8 +33,8 @@ navegador y un poco de Python. La cadena de ataque tiene 3 capas:
    firma → `/auth/verify`) logueándose con el usuario de práctica `alumno`.
 2. **Robo de la clave:** descubrir el endpoint `/auth/keys/<user_id>` con
    **IDOR** (no valida autorización), enumerar los `user_id` para encontrar al
-   CEO y descargar su clave privada **ofuscada**; leer el JS del frontend para
-   des-ofuscarla.
+   CEO y descargar su clave privada **codificada**; leer el JS del frontend para
+   decodificarla.
 3. **Suplantación:** firmar con Python un challenge fresco del CEO usando la
    clave robada y enviarlo a `/auth/verify` → login como CEO → **código
    ganador** (un hash MD5).
@@ -101,18 +101,18 @@ python solve.py                      # contra http://localhost:5000
   WebAuthn real — vía la librería `cryptography`.
 - **Base de datos:** SQLite.
 - **Frontend:** HTML + CSS (Tailwind CDN) + JavaScript vanilla, con la función
-  de (des)ofuscación de la clave a la vista.
+  de (de)codificación de la clave a la vista.
 
 ## Estructura
 
 ```
 app.py            Rutas Flask: páginas + API del flujo passwordless (con las vulns marcadas)
-config.py         Configuración centralizada (incluye la clave de "ofuscación")
+config.py         Configuración centralizada (incluye la clave de "codificación")
 db.py             Acceso a datos SQLite (parametrizado)
-crypto_utils.py   Generación de claves, ofuscación y verificación de firma
+crypto_utils.py   Generación de claves, codificación y verificación de firma
 seed.py           Siembra usuarios (alumno, ceo, señuelos) con sus pares de claves
 solve.py          Solución de referencia (writeup ejecutable)
-static/js/script.js   (Des)ofuscación + firma WebCrypto + flujo de login del frontend
+static/js/script.js   (De)codificación + firma WebCrypto + flujo de login del frontend
 templates/        landing.html, login.html, dashboard.html, _fido2_diagram.html
 INSTRUCTOR_GUIDE.md   Guía del organizador: solución paso a paso, teoría y rúbrica
 ```

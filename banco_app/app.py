@@ -10,7 +10,7 @@ MAPA DE VULNERABILIDADES INTENCIONALES (buscar "VULN" en el codigo):
   VULN-1 (Capa 2, IDOR):  GET /auth/keys/<user_id> devuelve la clave PRIVADA
           de cualquier usuario, sin validar autorizacion.
   VULN-2 (Capa 2, cripto): la clave privada existe del lado del server, apenas
-          "ofuscada" (reversible leyendo el JS del frontend). Ofuscar != cifrar.
+          "codificada" (reversible leyendo el JS del frontend). Codificar != cifrar.
   VULN-3 (diseno): el unico factor de autenticacion es una firma cuya clave
           privada es alcanzable por la red -> cualquiera que la obtenga se
           hace pasar por el duenio. En FIDO2 real la privada vive en hardware
@@ -185,7 +185,7 @@ def auth_challenge():
 def auth_keys(user_id):
     """'Backup' de la clave privada del usuario.
 
-    VULN-1 (IDOR) + VULN-2 (ofuscacion): devuelve la clave PRIVADA ofuscada de
+    VULN-1 (IDOR) + VULN-2 (codificacion): devuelve la clave PRIVADA codificada de
     CUALQUIER user_id, sin validar que el que pide sea el duenio (ni siquiera
     exige sesion). En un banco real esto no deberia existir; en FIDO2 real no
     hay ninguna clave privada del lado del server que se pueda exponer.
@@ -202,8 +202,8 @@ def auth_keys(user_id):
         user_id=user["id"],
         username=user["username"],
         display_name=user["display_name"],
-        # "Tu clave sigue protegida: viaja ofuscada." (spoiler: ofuscar no es cifrar)
-        private_key_obfuscated=user["private_key_obfuscated"],
+        # "Tu clave sigue protegida: viaja codificada." (spoiler: codificar no es cifrar)
+        private_key=user["private_key"],
     )
 
 

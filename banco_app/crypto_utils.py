@@ -3,12 +3,12 @@ Utilidades criptograficas del CTF passwordless.
 
 Implementa, del lado del servidor:
   - Generacion de un par de claves ECDSA P-256 (secp256r1) por usuario.
-  - "Ofuscacion" (NO cifrado) de la clave privada para guardarla en la base.
+  - "Codificacion" (NO cifrado) de la clave privada para guardarla en la base.
   - Verificacion de la firma de un challenge con la clave publica.
 
 NOTA PEDAGOGICA: en FIDO2/WebAuthn real el servidor SOLO guarda claves
 publicas y la privada vive en hardware inextraible (TPM/Secure Enclave). Aca,
-a proposito, el servidor genera y guarda la clave PRIVADA (ofuscada) y ademas
+a proposito, el servidor genera y guarda la clave PRIVADA (codificada) y ademas
 la expone por un endpoint (ver app.py -> /auth/keys/<user_id>). Ese es el
 pecado capital que el desafio ensena a explotar.
 
@@ -50,31 +50,31 @@ def generate_keypair_pem():
 
 
 # --------------------------------------------------------------------
-# "Ofuscacion" de la clave privada (VULNERABILIDAD INTENCIONAL, Capa 2)
+# "Codificacion" de la clave privada (VULNERABILIDAD INTENCIONAL, Capa 2)
 # --------------------------------------------------------------------
 def _xor_bytes(data: bytes, key: bytes) -> bytes:
     """XOR de `data` contra `key` repetida ciclicamente."""
     return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
 
 
-def obfuscate_private_key(priv_pem: str) -> str:
-    """Aplica base64( XOR( base64(PEM), OBFUSCATION_KEY ) ).
+def encode_private_key(priv_pem: str) -> str:
+    """Aplica base64( XOR( base64(PEM), BACKUP_KEY ) ).
 
     Este es el "esquema" que el desarrollador junior creyo seguro. La misma
-    OBFUSCATION_KEY esta visible en el JS del frontend, asi que es reversible
-    por cualquiera. Ofuscar no es cifrar.
+    BACKUP_KEY esta visible en el JS del frontend, asi que es reversible
+    por cualquiera. Codificar no es cifrar.
     """
-    key = config.OBFUSCATION_KEY.encode("ascii")
+    key = config.BACKUP_KEY.encode("ascii")
     inner_b64 = base64.b64encode(priv_pem.encode("ascii"))   # base64(PEM)
     xored = _xor_bytes(inner_b64, key)                        # XOR con la key
     return base64.b64encode(xored).decode("ascii")           # base64 exterior
 
 
-def deobfuscate_private_key(obfuscated: str) -> str:
-    """Revierte obfuscate_private_key(). Se incluye para tests/demo del server;
+def decode_private_key(encoded: str) -> str:
+    """Revierte encode_private_key(). Se incluye para tests/demo del server;
     el alumno reimplementa esta misma logica leyendo el JS del frontend."""
-    key = config.OBFUSCATION_KEY.encode("ascii")
-    xored = base64.b64decode(obfuscated)
+    key = config.BACKUP_KEY.encode("ascii")
+    xored = base64.b64decode(encoded)
     inner_b64 = _xor_bytes(xored, key)
     return base64.b64decode(inner_b64).decode("ascii")
 

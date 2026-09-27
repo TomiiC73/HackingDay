@@ -144,7 +144,7 @@
 
           {% set rows = [
             ('Descargaste la clave privada del CEO por la red', 'La clave nunca sale del TPM — es físicamente inextraíble'),
-            ('La clave estaba ofuscada, no cifrada de verdad', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
+            ('La clave estaba codificada, no cifrada de verdad', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
             ('Firmaste el challenge como si fueras el CEO', 'La firma exige presencia física + verificación biométrica en hardware'),
             ('El endpoint no validó autorización (IDOR)', 'La clave no existe fuera del dispositivo: no hay endpoint que exponer'),
             ('Todo el flujo es suplantable remotamente', 'FIDO2 ata cada firma al origin (dominio) → resistente a phishing'),

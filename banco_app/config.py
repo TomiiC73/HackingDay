@@ -29,14 +29,14 @@ SESSION_KEY_USER_ID = "authenticated_user_id"
 CHALLENGE_BYTES = 24              # largo del challenge aleatorio (en bytes)
 CHALLENGE_TTL_SECONDS = 300       # ventana de validez del challenge emitido
 
-# --- VULNERABILIDAD INTENCIONAL (Capa 2): clave XOR de "ofuscacion" ---
-# La clave privada de cada usuario se guarda del lado del servidor "ofuscada"
-# con base64(XOR(base64(PEM), OBFUSCATION_KEY)). Esta MISMA constante esta
+# --- VULNERABILIDAD INTENCIONAL (Capa 2): clave XOR de "codificacion" ---
+# La clave privada de cada usuario se guarda del lado del servidor "codificada"
+# con base64(XOR(base64(PEM), BACKUP_KEY)). Esta MISMA constante esta
 # embebida y visible en static/js/script.js (la app la necesita para que el
-# duenio legitimo pueda usar su clave). Ofuscar NO es cifrar: cualquiera que
+# duenio legitimo pueda usar su clave). Codificar NO es cifrar: cualquiera que
 # lea el JS puede revertir el proceso. En FIDO2 real no existe ninguna clave
 # privada del lado del server que proteger.
-OBFUSCATION_KEY = "hb_backup_key_2026"
+BACKUP_KEY = "hb_backup_key_2026"
 
 # --- Datos de presentacion del banco (landing) ---
 PUBLIC_USD_BUY = 1180.50

