@@ -22,13 +22,13 @@ landing fintech (Tailwind, oscuro/dorado, Inter) para ser inmersiva.
 
 ```
 banco_app/
-  app.py            Rutas Flask + API del flujo passwordless (vulns marcadas con VULN)
-  config.py         Configuración (incluye BACKUP_KEY, la clave del XOR)
-  db.py             DAO SQLite parametrizado
-  crypto_utils.py   ECDSA P-256: generación de claves, (de)codificación, verificación de firma
-  seed.py           Recrea la base y siembra usuarios (alumno, ceo, señuelos) con sus claves
+  app.py            Rutas Flask + API del flujo passwordless (vuln marcada con VULN)
+  config.py         Configuración (challenge TTL, curva, etc.)
+  db.py             DAO SQLite parametrizado (tablas users y credentials)
+  crypto_utils.py   ECDSA P-256: generación de par (seed), verificación de firma
+  seed.py           Recrea la base y siembra usuarios (alumno, ceo, señuelos)
   solve.py          Solución de referencia (writeup ejecutable)
-  static/js/script.js   (De)codificación + firma WebCrypto + flujo de login del frontend
+  static/js/script.js   Passkey WebCrypto (genera par, registra, firma) del frontend
   templates/        landing.html, login.html, dashboard.html, _fido2_diagram.html
   README.md         Para el participante
   INSTRUCTOR_GUIDE.md   Para el organizador (solución, teoría, rúbrica, montaje)
@@ -55,20 +55,24 @@ recrea la base con claves nuevas en cada arranque; no hay estado persistente).
 
 ## Diseño del desafío (para no romperlo sin querer)
 
-- **La cadena de ataque tiene 3 capas:** (1) reconocer el flujo `challenge →
-  keys → verify`; (2) IDOR en `GET /auth/keys/<user_id>` + decodificar la clave
-  privada leyendo `script.js`; (3) firmar un challenge del CEO con la clave
-  robada y hacer `POST /auth/verify`.
-- **Cripto:** ECDSA **P-256 (secp256r1)**, la misma curva de WebAuthn real. La
-  firma en el "cable" es **raw r‖s (64 bytes) en hex** (formato WebCrypto); el
-  servidor la convierte a DER para verificar. Mantener esta convención: el
-  frontend (`script.js`) y `solve.py` dependen de ella.
-- **Codificación:** `base64(XOR(base64(PEM), BACKUP_KEY))`. La `BACKUP_KEY`
-  está **a propósito** duplicada en `config.py` (server) y `script.js` (cliente).
-  Si se cambia, cambiarla en ambos lados.
-- **user_id:** en el rango `70xx` (no 1/2) para forzar la enumeración; la
-  respuesta del IDOR incluye `username`/`display_name` para que se pueda
-  identificar al CEO al enumerar. `alumno=7042`, `ceo=7013`.
+- **El servidor NO guarda claves privadas** (como FIDO2 real): solo públicas, en
+  la tabla `credentials`. Cada passkey se genera en el cliente (`script.js` con
+  WebCrypto, o el atacante en Python) y su privada nunca viaja.
+- **La única VULN (binding credencial→usuario):** en `POST /auth/verify` el
+  server valida que la firma sea correcta para la clave pública de la credencial
+  presentada, pero **no** valida que esa credencial pertenezca al `username`
+  reclamado. Falta, a propósito, el chequeo `credential["user_id"] == user["id"]`.
+  No agregar ese chequeo salvo que se quiera "arreglar" el desafío.
+- **El ataque:** registrar una passkey propia en una cuenta con registro abierto
+  (`POST /auth/register` sobre `alumno`), pedir un challenge del `ceo`, firmarlo
+  con la clave propia y mandar `POST /auth/verify` con `username: ceo` +
+  `credential_id` propio → entra como CEO.
+- **Anti-atajo:** el `ceo` tiene `passkey_registration_open=0` (registro
+  cerrado, passkey aprovisionada en el seed), así nadie puede simplemente
+  registrar una passkey nueva para el CEO. Mantener ese flag en 0 para el CEO.
+- **Cripto:** ECDSA **P-256 (secp256r1)**. La firma en el "cable" es **raw r‖s
+  (64 bytes) en hex** (formato WebCrypto); el servidor la convierte a DER para
+  verificar. `script.js` y `solve.py` dependen de esta convención.
 - **Flag:** MD5 ficticio en `seed.py` (`CEO_WINNING_CODE`), determinístico.
 
 ## Convenciones

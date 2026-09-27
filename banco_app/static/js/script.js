@@ -1,5 +1,18 @@
-const BACKUP_KEY = "hb_backup_key_2026";
-
+/*
+ * HackerBank - login "passwordless / biometrico" (lado del cliente).
+ *
+ * A diferencia de una versión anterior, acá NO se baja ninguna clave privada
+ * del servidor. Cada passkey se genera en el navegador con WebCrypto y su
+ * clave privada se queda del lado del cliente (la simulamos guardándola en
+ * localStorage). Al servidor solo viaja la clave PÚBLICA (al registrar) y una
+ * firma del challenge (al entrar) — igual que en FIDO2/WebAuthn real.
+ *
+ * >>> NOTA PARA QUIEN AUDITA ESTE CODIGO (CTF Hacking Day) <<<
+ * El agujero no está acá: está en el servidor. En /auth/verify el backend NO
+ * comprueba que la credencial que firma pertenezca al usuario que se reclama
+ * (falta de binding credencial->usuario). Con una passkey propia, registrada
+ * en tu cuenta, se puede firmar el challenge del CEO y entrar como el CEO.
+ */
 
 // ---------------------------------------------------------------------------
 // Helpers base64 / bytes
@@ -11,15 +24,8 @@ function b64ToBytes(b64) {
   return bytes;
 }
 
-function bytesToStr(bytes) {
-  return new TextDecoder().decode(bytes);
-}
-
-function xorBytes(bytes, keyStr) {
-  const key = new TextEncoder().encode(keyStr);
-  const out = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ key[i % key.length];
-  return out;
+function bufToB64(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
 function bufToHex(buffer) {
@@ -28,36 +34,64 @@ function bufToHex(buffer) {
     .join("");
 }
 
+function randomHex(nBytes) {
+  const a = new Uint8Array(nBytes);
+  crypto.getRandomValues(a);
+  return Array.from(a).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-// ---------------------------------------------------------------------------
-// Decodificacion de la clave privada
-// Revierte lo que hace el servidor: base64( XOR( base64(PEM), BACKUP_KEY ) )
-// ---------------------------------------------------------------------------
-function decodePrivateKey(encoded) {
-  const xored = b64ToBytes(encoded);          // deshago el base64 exterior
-  const innerB64Bytes = xorBytes(xored, BACKUP_KEY);  // deshago el XOR
-  const innerB64 = bytesToStr(innerB64Bytes);    // esto es base64(PEM)
-  const pemBytes = b64ToBytes(innerB64);         // deshago el base64 interior
-  return bytesToStr(pemBytes);                   // PEM de la clave privada
+function spkiToPem(spki) {
+  const b64 = bufToB64(spki);
+  const lines = b64.match(/.{1,64}/g).join("\n");
+  return `-----BEGIN PUBLIC KEY-----\n${lines}\n-----END PUBLIC KEY-----`;
 }
 
 
 // ---------------------------------------------------------------------------
-// Firma ECDSA P-256 del challenge con WebCrypto
+// Passkey local (simulación de un autenticador de plataforma)
+// La privada se guarda en localStorage. En FIDO2 real viviría en el TPM y
+// jamás sería exportable; acá es una simulación para el laboratorio.
 // ---------------------------------------------------------------------------
-function pemToPkcs8Der(pem) {
-  const body = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s+/g, "");
-  return b64ToBytes(body);
+function passkeyStorageKey(username) {
+  return "hb_passkey_" + username;
 }
 
-async function signChallenge(privatePem, challenge) {
-  const der = pemToPkcs8Der(privatePem);
+function loadPasskey(username) {
+  try {
+    const raw = localStorage.getItem(passkeyStorageKey(username));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function savePasskey(username, data) {
+  try {
+    localStorage.setItem(passkeyStorageKey(username), JSON.stringify(data));
+  } catch (e) {
+    /* modo privado: seguimos con la passkey en memoria de esta carga */
+  }
+}
+
+async function generatePasskey() {
+  const kp = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"]
+  );
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", kp.privateKey);
+  const spki = await crypto.subtle.exportKey("spki", kp.publicKey);
+  return {
+    credentialId: randomHex(16),
+    privB64: bufToB64(pkcs8),      // clave privada (se queda del lado del cliente)
+    publicPem: spkiToPem(spki),    // clave pública (lo único que se registra)
+  };
+}
+
+async function signChallenge(privB64, challenge) {
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    der,
+    b64ToBytes(privB64),
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"]
@@ -73,10 +107,31 @@ async function signChallenge(privatePem, challenge) {
 
 
 // ---------------------------------------------------------------------------
-// Flujo completo: challenge -> (bajar y decodificar clave) -> firmar -> verify
+// Flujo: (registrar passkey si no hay) -> challenge -> firmar -> verify
 // ---------------------------------------------------------------------------
-async function passwordlessLogin(username) {
-  // 1) Pedir un challenge fresco. La respuesta trae tambien nuestro user_id.
+async function passwordlessLogin(username, onStatus) {
+  let pk = loadPasskey(username);
+
+  // 1) Si esta cuenta todavía no tiene passkey en este dispositivo, registrarla.
+  if (!pk) {
+    if (onStatus) onStatus("Creando tu passkey en este dispositivo…", "info");
+    pk = await generatePasskey();
+    const regRes = await fetch("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        credential_id: pk.credentialId,
+        public_key: pk.publicPem,
+      }),
+    });
+    const regData = await regRes.json();
+    if (!regData.ok) throw new Error(regData.error || "No se pudo registrar la passkey.");
+    savePasskey(username, pk);
+  }
+
+  // 2) Pedir un challenge fresco.
+  if (onStatus) onStatus("Verificando tu biometría…", "info");
   const chRes = await fetch("/auth/challenge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,20 +140,19 @@ async function passwordlessLogin(username) {
   const chData = await chRes.json();
   if (!chData.ok) throw new Error(chData.error || "No se pudo iniciar el login.");
 
-  // 2) Bajar la clave privada "de backup" del usuario y decodificarla.
-  const keyRes = await fetch(`/auth/keys/${chData.user_id}`);
-  const keyData = await keyRes.json();
-  if (!keyData.ok) throw new Error(keyData.error || "No se pudo recuperar la clave.");
-  const privatePem = decodePrivateKey(keyData.private_key);
+  // 3) Firmar el challenge con la clave privada local.
+  const signature = await signChallenge(pk.privB64, chData.challenge);
 
-  // 3) Firmar el challenge con la clave privada.
-  const signature = await signChallenge(privatePem, chData.challenge);
-
-  // 4) Enviar la firma para que el servidor la verifique con la clave publica.
+  // 4) Enviar la firma (con el credential_id) para que el servidor la verifique.
   const vRes = await fetch("/auth/verify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, challenge: chData.challenge, signature }),
+    body: JSON.stringify({
+      username,
+      credential_id: pk.credentialId,
+      challenge: chData.challenge,
+      signature,
+    }),
   });
   const vData = await vRes.json();
   if (!vData.ok) throw new Error(vData.error || "No se pudo verificar la firma.");
@@ -107,7 +161,7 @@ async function passwordlessLogin(username) {
 
 
 // ---------------------------------------------------------------------------
-// Cableado de la UI del login (botones cosmeticos de huella/rostro)
+// Cableado de la UI del login (botón cosmético de huella/rostro)
 // ---------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("passwordless-form");
@@ -129,9 +183,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     scanBtn.disabled = true;
-    setStatus("Escaneando biometría y firmando el acceso…", "info");
+    setStatus("Escaneando biometría…", "info");
     try {
-      const next = await passwordlessLogin(username);
+      const next = await passwordlessLogin(username, setStatus);
       setStatus("Identidad verificada. Redirigiendo…", "ok");
       window.location.href = next;
     } catch (err) {

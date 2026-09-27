@@ -6,15 +6,18 @@ una passkey", pero cuya implementacion imita a FIDO2/WebAuthn SIN entenderlo.
 El objetivo pedagogico es que el alumno rompa esta version trucha y, por
 contraste, entienda que garantiza FIDO2 real.
 
-MAPA DE VULNERABILIDADES INTENCIONALES (buscar "VULN" en el codigo):
-  VULN-1 (Capa 2, IDOR):  GET /auth/keys/<user_id> devuelve la clave PRIVADA
-          de cualquier usuario, sin validar autorizacion.
-  VULN-2 (Capa 2, cripto): la clave privada existe del lado del server, apenas
-          "codificada" (reversible leyendo el JS del frontend). Codificar != cifrar.
-  VULN-3 (diseno): el unico factor de autenticacion es una firma cuya clave
-          privada es alcanzable por la red -> cualquiera que la obtenga se
-          hace pasar por el duenio. En FIDO2 real la privada vive en hardware
-          inextraible y solo viajan la publica y la firma.
+Como en FIDO2 real, el servidor SOLO guarda claves publicas: la clave privada
+de cada passkey vive del lado del cliente y nunca viaja. No hay ninguna clave
+que robar. La (unica) VULNERABILIDAD INTENCIONAL es de AUTORIZACION:
+
+  VULN (binding credencial->usuario): en /auth/verify el servidor comprueba que
+       la firma sea valida para la clave publica de la credencial presentada,
+       pero NO comprueba que esa credencial pertenezca al usuario que se
+       reclama. Resultado: un atacante registra su propia passkey (en una
+       cuenta cualquiera) y la usa para firmar el challenge del CEO -> el
+       servidor lo deja entrar como el CEO. En FIDO2 real el servidor SIEMPRE
+       verifica la firma contra las credenciales registradas de ESE usuario
+       (allowCredentials), no contra cualquier credencial valida.
 
 Todo es ficticio y con fines educativos. No maneja dinero real.
 """
@@ -137,22 +140,6 @@ def dashboard():
     )
 
 
-@app.route("/profile")
-def profile():
-    """Perfil del usuario logueado. Muestra su propio user_id: es la pista de
-    donde sale el <user_id> que consume el endpoint /auth/keys/<user_id>."""
-    user = _current_user()
-    if not user:
-        return jsonify(ok=False, error="No hay sesión iniciada."), 401
-    return jsonify(
-        ok=True,
-        user_id=user["id"],
-        username=user["username"],
-        display_name=user["display_name"],
-        alias=user["alias"],
-    )
-
-
 @app.route("/logout")
 def logout():
     session.clear()
@@ -160,15 +147,53 @@ def logout():
 
 
 # --------------------------------------------------------------------
-# API del flujo passwordless trucho
+# API del flujo passwordless
 # --------------------------------------------------------------------
+@app.route("/auth/register", methods=["POST"])
+def auth_register():
+    """Registra una passkey nueva para un usuario: guarda SOLO su clave publica
+    (la privada nunca llega al servidor, la genera y conserva el cliente).
+
+    El auto-registro esta habilitado por cuenta (passkey_registration_open). El
+    CEO lo tiene deshabilitado (su passkey la aprovisiona IT), asi nadie puede
+    simplemente registrarle una passkey nueva y entrar: el atacante tiene que
+    registrar la suya en otra cuenta y explotar la falta de binding en verify.
+    """
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get("username") or "").strip().lower()
+    credential_id = (payload.get("credential_id") or "").strip()
+    public_key = payload.get("public_key") or ""
+
+    user = db.get_user_by_username(username)
+    if user is None:
+        return jsonify(ok=False, error="Usuario inexistente."), 404
+    if not user["passkey_registration_open"]:
+        return jsonify(ok=False, error="El registro de passkeys está deshabilitado para esta cuenta."), 403
+    if not credential_id or not public_key:
+        return jsonify(ok=False, error="Faltan datos de la credencial."), 400
+
+    # Validar que la clave publica tenga formato PEM valido (entrada de red).
+    from cryptography.hazmat.primitives import serialization
+    try:
+        serialization.load_pem_public_key(public_key.encode("ascii"))
+    except (ValueError, TypeError):
+        return jsonify(ok=False, error="Clave pública inválida."), 400
+
+    try:
+        db.add_credential(credential_id, user["id"], public_key)
+    except Exception:
+        return jsonify(ok=False, error="No se pudo registrar la credencial (¿id repetido?)."), 409
+
+    return jsonify(ok=True, credential_id=credential_id)
+
+
 @app.route("/auth/challenge", methods=["POST"])
 def auth_challenge():
-    """Emite un challenge aleatorio para un usuario.
+    """Emite un challenge aleatorio para un usuario y le dice al cliente que
+    credenciales (allowCredentials) tiene registradas ese usuario.
 
-    Devuelve tambien el user_id del usuario: el frontend lo necesita para ir a
-    buscar la clave privada a /auth/keys/<user_id> y poder firmar. Esa
-    filtracion del user_id es la primera pista del IDOR de la Capa 2.
+    Un cliente honesto usaria allowCredentials para firmar solo con una
+    credencial de ese usuario. El atacante lo ignora: esa es la gracia.
     """
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
@@ -178,45 +203,31 @@ def auth_challenge():
         return jsonify(ok=False, error="Usuario inexistente."), 404
 
     challenge = _issue_challenge(username)
-    return jsonify(ok=True, username=username, user_id=user["id"], challenge=challenge)
-
-
-@app.route("/auth/keys/<int:user_id>", methods=["GET"])
-def auth_keys(user_id):
-    """'Backup' de la clave privada del usuario.
-
-    VULN-1 (IDOR) + VULN-2 (codificacion): devuelve la clave PRIVADA codificada de
-    CUALQUIER user_id, sin validar que el que pide sea el duenio (ni siquiera
-    exige sesion). En un banco real esto no deberia existir; en FIDO2 real no
-    hay ninguna clave privada del lado del server que se pueda exponer.
-
-    Incluye username/display_name "para que el usuario confirme que es su
-    backup" -> en la practica permite identificar de quien es cada clave al
-    enumerar los user_id (asi el alumno reconoce cual es el del CEO).
-    """
-    user = db.get_user_by_id(user_id)
-    if user is None:
-        return jsonify(ok=False, error="No existe backup para ese id."), 404
     return jsonify(
         ok=True,
-        user_id=user["id"],
-        username=user["username"],
-        display_name=user["display_name"],
-        # "Tu clave sigue protegida: viaja codificada." (spoiler: codificar no es cifrar)
-        private_key=user["private_key"],
+        username=username,
+        challenge=challenge,
+        allow_credentials=db.get_credential_ids_for_user(user["id"]),
     )
 
 
 @app.route("/auth/verify", methods=["POST"])
 def auth_verify():
-    """Verifica la firma del challenge con la clave PUBLICA del usuario.
+    """Verifica la firma del challenge e inicia sesion.
 
-    Si la firma es valida para el challenge vigente, inicia sesion. No pide
-    contrasena ni ningun otro factor: quien tenga la clave privada (obtenible
-    por la red via /auth/keys) puede autenticarse como el usuario.
+    VULN (binding credencial->usuario): se verifica que la firma sea valida
+    para la clave publica de la credencial presentada, pero NO se comprueba que
+    esa credencial pertenezca al `username` que se reclama. Falta, a proposito,
+    el chequeo:
+
+        if credential["user_id"] != user["id"]: rechazar
+
+    Sin ese chequeo, cualquiera con una passkey valida (registrada en su propia
+    cuenta) puede firmar el challenge del CEO y entrar como el CEO.
     """
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
+    credential_id = (payload.get("credential_id") or "").strip()
     challenge = payload.get("challenge") or ""
     signature_hex = payload.get("signature") or ""
 
@@ -227,8 +238,17 @@ def auth_verify():
     if not _consume_challenge(username, challenge):
         return jsonify(ok=False, error="Challenge inválido, vencido o ya usado. Pedí uno nuevo."), 400
 
-    if not crypto_utils.verify_signature(user["public_key_pem"], challenge, signature_hex):
+    credential = db.get_credential(credential_id)
+    if credential is None:
+        return jsonify(ok=False, error="Credencial desconocida."), 401
+
+    if not crypto_utils.verify_signature(credential["public_key_pem"], challenge, signature_hex):
         return jsonify(ok=False, error="Firma inválida."), 401
+
+    # <-- VULN: aca faltaria comprobar que `credential` pertenezca a `user`
+    #     (credential["user_id"] == user["id"]) y/o que credential_id este en
+    #     allowCredentials del usuario. Al no hacerlo, se acepta la passkey de
+    #     cualquiera como si fuera la del usuario reclamado.
 
     session.clear()
     session[config.SESSION_KEY_USER_ID] = user["id"]

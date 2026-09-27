@@ -1,40 +1,38 @@
 """
 Utilidades criptograficas del CTF passwordless.
 
-Implementa, del lado del servidor:
-  - Generacion de un par de claves ECDSA P-256 (secp256r1) por usuario.
-  - "Codificacion" (NO cifrado) de la clave privada para guardarla en la base.
-  - Verificacion de la firma de un challenge con la clave publica.
+Del lado del servidor solo se necesita:
+  - Generacion de un par de claves ECDSA P-256 (usado por seed.py para
+    aprovisionar la credencial pre-cargada del CEO; la privada se descarta).
+  - Verificacion de la firma de un challenge con una clave PUBLICA.
 
-NOTA PEDAGOGICA: en FIDO2/WebAuthn real el servidor SOLO guarda claves
-publicas y la privada vive en hardware inextraible (TPM/Secure Enclave). Aca,
-a proposito, el servidor genera y guarda la clave PRIVADA (codificada) y ademas
-la expone por un endpoint (ver app.py -> /auth/keys/<user_id>). Ese es el
-pecado capital que el desafio ensena a explotar.
+NOTA PEDAGOGICA: como en FIDO2/WebAuthn real, el servidor SOLO guarda claves
+publicas. La clave privada de cada credencial vive del lado del cliente y nunca
+viaja al servidor. La vulnerabilidad del desafio no es una clave robable: es
+que /auth/verify no comprueba que la credencial que firma pertenezca al usuario
+que se reclama (falta de binding credencial->usuario).
 
 Formato de firma en el "cable": raw r||s de 64 bytes (32 + 32), en hex. Es el
-formato que produce WebCrypto (crypto.subtle.sign) en el navegador. El
-servidor lo convierte a DER para verificar con la libreria `cryptography`.
+formato que produce WebCrypto (crypto.subtle.sign) en el navegador. El servidor
+lo convierte a DER para verificar con la libreria `cryptography`.
 """
-import base64
+import secrets
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from cryptography.exceptions import InvalidSignature
 
-import config
-
 
 # --------------------------------------------------------------------
-# Generacion de claves (usado por seed.py)
+# Generacion de claves / credenciales (usado por seed.py)
 # --------------------------------------------------------------------
 def generate_keypair_pem():
     """Genera un par ECDSA P-256 y lo devuelve como (priv_pem, pub_pem) str.
 
-    - priv: PKCS8 PEM sin cifrar (asi el navegador puede importarla con
-      WebCrypto en formato 'pkcs8' sin pedir passphrase).
-    - pub: SubjectPublicKeyInfo PEM.
+    seed.py lo usa para aprovisionar la credencial del CEO: guarda solo la
+    publica y descarta la privada (igual que un servidor FIDO2 real, que nunca
+    llega a ver la privada).
     """
     private_key = ec.generate_private_key(ec.SECP256R1())
     priv_pem = private_key.private_bytes(
@@ -49,34 +47,9 @@ def generate_keypair_pem():
     return priv_pem, pub_pem
 
 
-# --------------------------------------------------------------------
-# "Codificacion" de la clave privada (VULNERABILIDAD INTENCIONAL, Capa 2)
-# --------------------------------------------------------------------
-def _xor_bytes(data: bytes, key: bytes) -> bytes:
-    """XOR de `data` contra `key` repetida ciclicamente."""
-    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
-
-
-def encode_private_key(priv_pem: str) -> str:
-    """Aplica base64( XOR( base64(PEM), BACKUP_KEY ) ).
-
-    Este es el "esquema" que el desarrollador junior creyo seguro. La misma
-    BACKUP_KEY esta visible en el JS del frontend, asi que es reversible
-    por cualquiera. Codificar no es cifrar.
-    """
-    key = config.BACKUP_KEY.encode("ascii")
-    inner_b64 = base64.b64encode(priv_pem.encode("ascii"))   # base64(PEM)
-    xored = _xor_bytes(inner_b64, key)                        # XOR con la key
-    return base64.b64encode(xored).decode("ascii")           # base64 exterior
-
-
-def decode_private_key(encoded: str) -> str:
-    """Revierte encode_private_key(). Se incluye para tests/demo del server;
-    el alumno reimplementa esta misma logica leyendo el JS del frontend."""
-    key = config.BACKUP_KEY.encode("ascii")
-    xored = base64.b64decode(encoded)
-    inner_b64 = _xor_bytes(xored, key)
-    return base64.b64decode(inner_b64).decode("ascii")
+def generate_credential_id() -> str:
+    """Un id de credencial opaco (hex), analogo al credential_id de WebAuthn."""
+    return secrets.token_hex(16)
 
 
 # --------------------------------------------------------------------

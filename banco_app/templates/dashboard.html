@@ -131,10 +131,12 @@
       <div class="text-gold text-sm tracking-[0.25em] uppercase mb-3">Lo que aprendiste</div>
       <h2 class="text-3xl font-extrabold leading-tight mb-4">Por qué esto no pasaría con FIDO2 real</h2>
       <p class="text-white/55 leading-relaxed max-w-3xl mb-8">
-        Cada cosa que rompiste en este desafío es exactamente lo que
-        FIDO2/WebAuthn hace imposible por diseño. El pecado capital fue tener
-        una clave privada accesible por la red. En FIDO2 real esa clave vive en
-        hardware inextraíble (TPM / Secure Enclave) y nunca sale del dispositivo.
+        Acá no robaste ninguna clave: el servidor nunca guardó claves privadas.
+        El fallo fue de autorización — verificó que tu firma fuera válida, pero
+        no que la credencial que usaste perteneciera realmente al CEO (falta de
+        binding). FIDO2/WebAuthn real siempre verifica la firma contra las
+        credenciales registradas de ESE usuario, así que tu passkey nunca serviría
+        para entrar a otra cuenta.
       </p>
 
       <div class="glass rounded-3xl overflow-hidden">
@@ -143,11 +145,11 @@
           <div class="px-6 py-4 font-bold text-emerald-300 border-b border-white/10 bg-emerald-500/5">Cómo lo previene FIDO2 real</div>
 
           {% set rows = [
-            ('Descargaste la clave privada del CEO por la red', 'La clave nunca sale del TPM — es físicamente inextraíble'),
-            ('La clave estaba codificada, no cifrada de verdad', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
-            ('Firmaste el challenge como si fueras el CEO', 'La firma exige presencia física + verificación biométrica en hardware'),
-            ('El endpoint no validó autorización (IDOR)', 'La clave no existe fuera del dispositivo: no hay endpoint que exponer'),
-            ('Todo el flujo es suplantable remotamente', 'FIDO2 ata cada firma al origin (dominio) → resistente a phishing'),
+            ('Entraste como el CEO usando TU propia passkey', 'FIDO2 solo acepta las credenciales registradas de ESE usuario (allowCredentials)'),
+            ('El servidor verificó la firma pero no de quién era la credencial', 'Cada credencial está ligada a su dueño y el server lo comprueba en cada login'),
+            ('Te hiciste pasar por el CEO sin tener su clave', 'La firma exige presencia física + verificación biométrica en el hardware del dueño'),
+            ('Nunca hizo falta robar ninguna clave privada', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
+            ('Todo el ataque se hizo de forma remota', 'FIDO2 ata cada firma al origin (dominio) → resistente a phishing'),
           ] %}
           {% for bad, good in rows %}
           <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ bad }}</div>
