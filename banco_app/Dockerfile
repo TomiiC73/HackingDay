@@ -1,6 +1,7 @@
 # HackerBank - CTF "Passwordless de Carton" (Hacking Day Cordoba).
-# Imagen independiente: Flask + SQLite + cryptography (ECDSA P-256).
-FROM python:3.11-slim
+# Base: imagen oficial de Playwright (trae Python + Chromium + sus dependencias
+# de sistema ya instaladas), para el bot CEO headless (bot.py).
+FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
 
 WORKDIR /app
 
@@ -11,7 +12,6 @@ COPY . .
 
 EXPOSE 5000
 
-# seed.py borra y recrea la base en cada arranque (genera claves nuevas y
-# resiembra alumno/ceo/senuelos): el contenedor siempre empieza limpio, ideal
-# para resetear el entorno entre participantes del evento.
-CMD ["sh", "-c", "python seed.py && python app.py"]
+# Arranque: sembrar la base (crea ceo_passkey.json para el bot), levantar la app
+# y, en paralelo, el bot CEO que revisa su inbox cuando lo disparan.
+CMD ["sh", "-c", "python seed.py && (python bot.py &) && python app.py"]

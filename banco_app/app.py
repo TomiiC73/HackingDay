@@ -1,28 +1,22 @@
 """
 HackerBank - CTF "Passwordless de Carton" (Hacking Day Cordoba).
 
-Banco ficticio que promociona un login "passwordless / biometrico, seguro como
-una passkey", pero cuya implementacion imita a FIDO2/WebAuthn SIN entenderlo.
-El objetivo pedagogico es que el alumno rompa esta version trucha y, por
-contraste, entienda que garantiza FIDO2 real.
+Banco ficticio passwordless. Como en FIDO2 real, el servidor SOLO guarda claves
+publicas; la privada de cada passkey vive del lado del cliente (en localStorage).
+El desafio encadena un IDOR (filtra el credential_id del CEO) y un Stored XSS
+(el inbox del CEO renderiza mensajes sin sanitizar; un bot CEO los ve y un
+payload roba su clave privada de localStorage).
 
-Como en FIDO2 real, el servidor SOLO guarda claves publicas: la clave privada
-de cada passkey vive del lado del cliente y nunca viaja. No hay ninguna clave
-que robar. La (unica) VULNERABILIDAD INTENCIONAL es de AUTORIZACION:
+VULN-1 (IDOR): GET /auth/keys/<user_id> devuelve la credencial de cualquiera.
+VULN-2 (Stored XSS): GET /inbox no sanitiza los mensajes.
 
-  VULN (binding credencial->usuario): en /auth/verify el servidor comprueba que
-       la firma sea valida para la clave publica de la credencial presentada,
-       pero NO comprueba que esa credencial pertenezca al usuario que se
-       reclama. Resultado: un atacante registra su propia passkey (en una
-       cuenta cualquiera) y la usa para firmar el challenge del CEO -> el
-       servidor lo deja entrar como el CEO. En FIDO2 real el servidor SIEMPRE
-       verifica la firma contra las credenciales registradas de ESE usuario
-       (allowCredentials), no contra cualquier credencial valida.
-
-Todo es ficticio y con fines educativos. No maneja dinero real.
+El pecado de fondo que ensena FIDO2: guardar la clave privada donde JavaScript
+la alcanza (localStorage) la hace robable por XSS. En FIDO2 real vive en el TPM
+y JS nunca la toca. Todo es ficticio y educativo.
 """
 import secrets
 import time
+from functools import wraps
 
 from flask import (Flask, jsonify, redirect, render_template, request,
                    session, url_for)
@@ -45,18 +39,12 @@ db.init_db()
 
 
 def _format_currency(amount):
-    """Formatea con separador de miles '.' y decimales ',' (es-AR)."""
     formatted = f"{abs(amount):,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
     return f"-{formatted}" if amount < 0 else formatted
 
 
 app.jinja_env.filters["currency"] = _format_currency
 
-
-# --------------------------------------------------------------------
-# Almacen efimero de challenges emitidos, en memoria: {username: (challenge, expiry_ts)}.
-# Un banco real usaria algo distribuido; para una instancia de CTF alcanza.
-# --------------------------------------------------------------------
 _ISSUED_CHALLENGES = {}
 
 
@@ -67,8 +55,6 @@ def _issue_challenge(username):
 
 
 def _consume_challenge(username, challenge):
-    """Devuelve True si `challenge` es el vigente (no expirado) para `username`
-    y lo invalida (un solo uso)."""
     stored = _ISSUED_CHALLENGES.get(username)
     if not stored:
         return False
@@ -78,7 +64,7 @@ def _consume_challenge(username, challenge):
         return False
     if not secrets.compare_digest(value, challenge):
         return False
-    _ISSUED_CHALLENGES.pop(username, None)   # un solo uso
+    _ISSUED_CHALLENGES.pop(username, None)
     return True
 
 
@@ -87,57 +73,71 @@ def _current_user():
     return db.get_user_by_id(user_id) if user_id else None
 
 
+def require_login(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if _current_user() is None:
+            return redirect(url_for("login_page"))
+        return view(*args, **kwargs)
+    return wrapped
+
+
 def _account_view(user):
     cbu = user["cbu"]
     account_number = f"{cbu[3:7]} / {cbu[8:]}" if len(cbu) >= 12 else cbu
-    return {
-        "account_number": account_number,
-        "account_type": config.ACCOUNT_TYPE_LABEL,
-        "branch": config.BANK_BRANCH_LABEL,
-        "bic": config.BANK_BIC,
-        "status": "Activa",
-    }
+    return {"account_number": account_number, "account_type": config.ACCOUNT_TYPE_LABEL,
+            "branch": config.BANK_BRANCH_LABEL, "bic": config.BANK_BIC, "status": "Activa"}
 
 
-# --------------------------------------------------------------------
-# Paginas
-# --------------------------------------------------------------------
 @app.route("/")
 def landing():
     return render_template(
         "landing.html",
-        usd_buy=config.PUBLIC_USD_BUY,
-        usd_sell=config.PUBLIC_USD_SELL,
-        eur_buy=config.PUBLIC_EUR_BUY,
-        eur_sell=config.PUBLIC_EUR_SELL,
-        loan_max_ars=config.PUBLIC_LOAN_MAX_ARS,
-        loan_tna=config.PUBLIC_LOAN_TNA_PERCENT,
+        usd_buy=config.PUBLIC_USD_BUY, usd_sell=config.PUBLIC_USD_SELL,
+        eur_buy=config.PUBLIC_EUR_BUY, eur_sell=config.PUBLIC_EUR_SELL,
+        loan_max_ars=config.PUBLIC_LOAN_MAX_ARS, loan_tna=config.PUBLIC_LOAN_TNA_PERCENT,
         fixed_deposit_tna=config.PUBLIC_FIXED_DEPOSIT_TNA_PERCENT,
         fixed_deposit_min_days=config.PUBLIC_FIXED_DEPOSIT_MIN_DAYS,
         credit_card_tna=config.PUBLIC_CREDIT_CARD_TNA_PERCENT,
-        support_phone=config.PUBLIC_SUPPORT_PHONE,
-        support_hours=config.PUBLIC_SUPPORT_HOURS,
+        support_phone=config.PUBLIC_SUPPORT_PHONE, support_hours=config.PUBLIC_SUPPORT_HOURS,
         branches=config.PUBLIC_BRANCHES,
     )
 
 
 @app.route("/login")
 def login_page():
-    return render_template("login.html")
+    return render_template("login.html", practice_user=config.PRACTICE_USERNAME)
 
 
 @app.route("/dashboard")
+@require_login
 def dashboard():
     user = _current_user()
-    if not user:
-        return redirect(url_for("login_page"))
-    return render_template(
-        "dashboard.html",
-        user=user,
-        account=_account_view(user),
-        is_ceo=(user["role"] == "ceo"),
-        winning_code=user["winning_code"],
-    )
+    return render_template("dashboard.html", user=user, account=_account_view(user),
+                           is_ceo=(user["role"] == "ceo"), winning_code=user["winning_code"])
+
+
+@app.route("/mensajes")
+@require_login
+def mensajes_page():
+    return render_template("mensajes.html", user=_current_user(),
+                           cooldown=config.SOCIAL_NOTIFY_COOLDOWN_SECONDS)
+
+
+@app.route("/inbox")
+def inbox():
+    """Bandeja de 'mensajes al administrador' que revisa el CEO. VULN-2 (Stored
+    XSS): los mensajes se renderizan SIN sanitizar. La visita el bot CEO, que
+    tiene la clave privada del CEO en localStorage pero NO una sesion bancaria,
+    asi que un payload solo roba la clave, no la flag."""
+    return render_template("inbox.html", messages=db.get_all_messages(),
+                           practice_user=config.PRACTICE_USERNAME)
+
+
+@app.route("/collected")
+@require_login
+def collected_page():
+    return render_template("collected.html", items=db.get_all_collected())
 
 
 @app.route("/logout")
@@ -146,19 +146,10 @@ def logout():
     return redirect(url_for("landing"))
 
 
-# --------------------------------------------------------------------
-# API del flujo passwordless
-# --------------------------------------------------------------------
 @app.route("/auth/register", methods=["POST"])
 def auth_register():
-    """Registra una passkey nueva para un usuario: guarda SOLO su clave publica
-    (la privada nunca llega al servidor, la genera y conserva el cliente).
-
-    El auto-registro esta habilitado por cuenta (passkey_registration_open). El
-    CEO lo tiene deshabilitado (su passkey la aprovisiona IT), asi nadie puede
-    simplemente registrarle una passkey nueva y entrar: el atacante tiene que
-    registrar la suya en otra cuenta y explotar la falta de binding en verify.
-    """
+    """Registra una passkey (solo la clave publica). Bloqueado para cuentas con
+    registro cerrado (el CEO)."""
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
     credential_id = (payload.get("credential_id") or "").strip()
@@ -172,7 +163,6 @@ def auth_register():
     if not credential_id or not public_key:
         return jsonify(ok=False, error="Faltan datos de la credencial."), 400
 
-    # Validar que la clave publica tenga formato PEM valido (entrada de red).
     from cryptography.hazmat.primitives import serialization
     try:
         serialization.load_pem_public_key(public_key.encode("ascii"))
@@ -183,48 +173,43 @@ def auth_register():
         db.add_credential(credential_id, user["id"], public_key)
     except Exception:
         return jsonify(ok=False, error="No se pudo registrar la credencial (¿id repetido?)."), 409
-
     return jsonify(ok=True, credential_id=credential_id)
 
 
 @app.route("/auth/challenge", methods=["POST"])
 def auth_challenge():
-    """Emite un challenge aleatorio para un usuario y le dice al cliente que
-    credenciales (allowCredentials) tiene registradas ese usuario.
-
-    Un cliente honesto usaria allowCredentials para firmar solo con una
-    credencial de ese usuario. El atacante lo ignora: esa es la gracia.
-    """
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
-
     user = db.get_user_by_username(username)
     if user is None:
         return jsonify(ok=False, error="Usuario inexistente."), 404
-
     challenge = _issue_challenge(username)
-    return jsonify(
-        ok=True,
-        username=username,
-        challenge=challenge,
-        allow_credentials=db.get_credential_ids_for_user(user["id"]),
-    )
+    return jsonify(ok=True, username=username, user_id=user["id"], challenge=challenge)
+
+
+@app.route("/auth/keys/<int:user_id>", methods=["GET"])
+def auth_keys(user_id):
+    """VULN-1 (IDOR): devuelve la credencial (credential_id + clave publica, NO
+    la privada) de cualquier user_id sin autorizacion. Filtra el credential_id
+    del CEO, necesario para /auth/verify."""
+    user = db.get_user_by_id(user_id)
+    if user is None:
+        return jsonify(ok=False, error="No existe ese usuario."), 404
+    cred = db.get_primary_credential_for_user(user_id)
+    if cred is None:
+        return jsonify(ok=True, user_id=user["id"], username=user["username"],
+                       display_name=user["display_name"], credential_id=None, public_key=None)
+    return jsonify(ok=True, user_id=user["id"], username=user["username"],
+                   display_name=user["display_name"], credential_id=cred["credential_id"],
+                   public_key=cred["public_key_pem"])
 
 
 @app.route("/auth/verify", methods=["POST"])
 def auth_verify():
-    """Verifica la firma del challenge e inicia sesion.
-
-    VULN (binding credencial->usuario): se verifica que la firma sea valida
-    para la clave publica de la credencial presentada, pero NO se comprueba que
-    esa credencial pertenezca al `username` que se reclama. Falta, a proposito,
-    el chequeo:
-
-        if credential["user_id"] != user["id"]: rechazar
-
-    Sin ese chequeo, cualquiera con una passkey valida (registrada en su propia
-    cuenta) puede firmar el challenge del CEO y entrar como el CEO.
-    """
+    """Verifica firma + binding (la credencial debe pertenecer al usuario). Para
+    entrar como el CEO hace falta SU credential_id (IDOR) y firmar con SU clave
+    privada (robada por XSS). El server es honesto: el pecado fue dejar la clave
+    privada al alcance de un XSS."""
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
     credential_id = (payload.get("credential_id") or "").strip()
@@ -234,25 +219,51 @@ def auth_verify():
     user = db.get_user_by_username(username)
     if user is None:
         return jsonify(ok=False, error="Usuario inexistente."), 404
-
     if not _consume_challenge(username, challenge):
         return jsonify(ok=False, error="Challenge inválido, vencido o ya usado. Pedí uno nuevo."), 400
 
     credential = db.get_credential(credential_id)
-    if credential is None:
-        return jsonify(ok=False, error="Credencial desconocida."), 401
-
+    if credential is None or credential["user_id"] != user["id"]:
+        return jsonify(ok=False, error="Esa credencial no pertenece a este usuario."), 401
     if not crypto_utils.verify_signature(credential["public_key_pem"], challenge, signature_hex):
         return jsonify(ok=False, error="Firma inválida."), 401
-
-    # <-- VULN: aca faltaria comprobar que `credential` pertenezca a `user`
-    #     (credential["user_id"] == user["id"]) y/o que credential_id este en
-    #     allowCredentials del usuario. Al no hacerlo, se acepta la passkey de
-    #     cualquiera como si fuera la del usuario reclamado.
 
     session.clear()
     session[config.SESSION_KEY_USER_ID] = user["id"]
     return jsonify(ok=True, next=url_for("dashboard"))
+
+
+@app.route("/messages", methods=["POST"])
+@require_login
+def post_message():
+    user = _current_user()
+    body = (request.get_json(silent=True) or {}).get("body") or ""
+    if not body.strip():
+        return jsonify(ok=False, error="El mensaje está vacío."), 400
+    db.add_message(user["username"], body)
+    return jsonify(ok=True)
+
+
+@app.route("/social/notify", methods=["POST"])
+@require_login
+def social_notify():
+    """Ingenieria social: fuerza al bot CEO a revisar su bandeja. 1 vez/min."""
+    last = db.last_bot_request_epoch()
+    now = int(time.time())
+    if last is not None and (now - last) < config.SOCIAL_NOTIFY_COOLDOWN_SECONDS:
+        wait = config.SOCIAL_NOTIFY_COOLDOWN_SECONDS - (now - last)
+        return jsonify(ok=False, error=f"Esperá {wait}s antes de volver a avisarle al administrador."), 429
+    db.enqueue_bot_visit()
+    return jsonify(ok=True)
+
+
+@app.route("/collect")
+def collect():
+    """Recibe lo que exfiltra el payload XSS (?data=...). Sin auth: buzon abierto."""
+    data = request.args.get("data", "")
+    if data:
+        db.add_collected(data)
+    return ("", 204)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,10 @@
       </svg>
       <span>Hacker<span class="text-gradient-gold">Bank</span></span>
     </a>
-    <a href="{{ url_for('logout') }}" class="text-sm text-white/60 hover:text-white transition-colors">Cerrar sesión</a>
+    <div class="flex items-center gap-6 text-sm text-white/60">
+      <a href="{{ url_for('mensajes_page') }}" class="hover:text-white transition-colors">Mensajes al admin</a>
+      <a href="{{ url_for('logout') }}" class="hover:text-white transition-colors">Cerrar sesión</a>
+    </div>
   </div>
 </nav>
 
@@ -66,9 +69,9 @@
       </div>
       <h2 class="text-2xl font-extrabold mb-2">Código ganador</h2>
       <p class="text-white/55 text-sm mb-5 max-w-2xl">
-        Entraste como <b class="text-white/80">{{ user.display_name }}</b> sin
-        ser el dueño de su clave. Copiá este código como comprobante de que
-        completaste el desafío:
+        Entraste como <b class="text-white/80">{{ user.display_name }}</b> con
+        la clave privada que le robaste por XSS. Copiá este código como
+        comprobante de que completaste el desafío:
       </p>
       <div class="inline-flex items-center gap-3 rounded-xl bg-black/50 border border-gold/30 px-5 py-3">
         <span class="flag-code text-lg sm:text-xl text-gold">{{ winning_code }}</span>
@@ -131,12 +134,11 @@
       <div class="text-gold text-sm tracking-[0.25em] uppercase mb-3">Lo que aprendiste</div>
       <h2 class="text-3xl font-extrabold leading-tight mb-4">Por qué esto no pasaría con FIDO2 real</h2>
       <p class="text-white/55 leading-relaxed max-w-3xl mb-8">
-        Acá no robaste ninguna clave: el servidor nunca guardó claves privadas.
-        El fallo fue de autorización — verificó que tu firma fuera válida, pero
-        no que la credencial que usaste perteneciera realmente al CEO (falta de
-        binding). FIDO2/WebAuthn real siempre verifica la firma contra las
-        credenciales registradas de ESE usuario, así que tu passkey nunca serviría
-        para entrar a otra cuenta.
+        Lo que hizo posible el ataque fue que la clave privada del CEO estaba en
+        <b class="text-white/80">localStorage</b>, accesible por JavaScript: por
+        eso un XSS pudo robarla. En FIDO2/WebAuthn real la clave vive en el
+        <b class="text-white/80">TPM/Secure Enclave</b> y JavaScript nunca puede
+        leerla — el mismo XSS no robaría absolutamente nada.
       </p>
 
       <div class="glass rounded-3xl overflow-hidden">
@@ -145,11 +147,11 @@
           <div class="px-6 py-4 font-bold text-emerald-300 border-b border-white/10 bg-emerald-500/5">Cómo lo previene FIDO2 real</div>
 
           {% set rows = [
-            ('Entraste como el CEO usando TU propia passkey', 'FIDO2 solo acepta las credenciales registradas de ESE usuario (allowCredentials)'),
-            ('El servidor verificó la firma pero no de quién era la credencial', 'Cada credencial está ligada a su dueño y el server lo comprueba en cada login'),
-            ('Te hiciste pasar por el CEO sin tener su clave', 'La firma exige presencia física + verificación biométrica en el hardware del dueño'),
-            ('Nunca hizo falta robar ninguna clave privada', 'El servidor solo guarda claves PÚBLICAS: no hay secreto que robar'),
-            ('Todo el ataque se hizo de forma remota', 'FIDO2 ata cada firma al origin (dominio) → resistente a phishing'),
+            ('Robaste la clave privada del CEO con un XSS', 'La clave vive en el TPM: JavaScript nunca puede leerla'),
+            ('La clave estaba en localStorage, al alcance de JS', 'En FIDO2 la clave nunca sale del hardware ni toca el navegador'),
+            ('Un mensaje malicioso ejecutó código en el CEO', 'Aunque haya XSS, del lado del cliente no hay clave privada que robar'),
+            ('Filtraste el credential_id con un IDOR', 'El credential_id no es secreto, pero sin la privada (inrobable) no sirve'),
+            ('Firmaste el challenge con la clave robada', 'Firmar exige la clave en hardware + verificación del usuario (biometría)'),
           ] %}
           {% for bad, good in rows %}
           <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ bad }}</div>

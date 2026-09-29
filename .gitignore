@@ -11,6 +11,9 @@ venv/
 # Base de datos generada por seed.py
 banco_app/hackerbank.db
 
+# Passkey del CEO que el seed genera para el bot (efímera, no versionar)
+banco_app/ceo_passkey.json
+
 # Entorno local
 banco_app/.env
 

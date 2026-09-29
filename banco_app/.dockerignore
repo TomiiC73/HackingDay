@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 hackerbank.db
+ceo_passkey.json
 .env
 venv/
 .venv/

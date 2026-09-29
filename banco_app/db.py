@@ -2,17 +2,16 @@
 Capa de acceso a datos (DAO) del CTF passwordless.
 
 Toda consulta usa placeholders "?" de sqlite3 (parametrizada): el desafio no es
-de inyeccion SQL, es de AUTORIZACION (falta de binding credencial->usuario en
-/auth/verify). Se mantiene el codigo limpio en ese aspecto para que el foco
-pedagogico quede en el flujo passwordless.
+de inyeccion SQL. Los pecados son un IDOR (que filtra el credential_id de otros
+usuarios) y un Stored XSS (el inbox del CEO renderiza mensajes sin sanitizar),
+que juntos permiten robar la clave privada del CEO.
 
-Modelo de datos (como FIDO2 real):
-  - `users`: la cuenta. NO guarda ninguna clave.
-  - `credentials`: las passkeys registradas. Solo la clave PUBLICA de cada una;
-    la privada vive del lado del cliente y nunca llega al servidor.
-
-Cada credencial pertenece a un usuario (columna user_id). El "pecado" del
-desafio es que /auth/verify no usa esa pertenencia para nada (ver app.py).
+Modelo de datos (como FIDO2 real, el servidor solo guarda claves PUBLICAS):
+  - users        : las cuentas.
+  - credentials  : las passkeys registradas (solo la clave PUBLICA).
+  - messages     : "mensajes al administrador" que el CEO ve en su inbox (XSS).
+  - collected    : buzon donde el payload XSS exfiltra lo que roba.
+  - bot_requests : cola de "pedidos" para que el bot CEO visite su inbox.
 """
 import sqlite3
 from contextlib import contextmanager
@@ -33,12 +32,12 @@ def get_connection():
 
 
 def reset_db():
-    """Borra el esquema entero para recrearlo desde cero. seed.py lo usa asi
-    cada arranque del contenedor empieza limpio (util para resetear el entorno
-    entre participantes del evento)."""
     with get_connection() as conn:
         conn.executescript(
             """
+            DROP TABLE IF EXISTS bot_requests;
+            DROP TABLE IF EXISTS collected;
+            DROP TABLE IF EXISTS messages;
             DROP TABLE IF EXISTS credentials;
             DROP TABLE IF EXISTS users;
             """
@@ -53,17 +52,17 @@ def init_db():
                 id INTEGER PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 display_name TEXT NOT NULL,
-                role TEXT NOT NULL,              -- 'alumno', 'ceo', 'senuelo'
-                -- Si esta cuenta permite auto-registrar passkeys por la web.
-                -- El CEO lo tiene en 0 (su passkey la aprovisiona IT): asi el
-                -- atacante no puede simplemente registrar una passkey nueva
-                -- para el CEO, y se ve forzado a la confusion de credencial.
+                role TEXT NOT NULL,              -- 'practica', 'ceo', 'senuelo'
+                -- Si la cuenta permite auto-registrar passkeys por la web. El
+                -- CEO lo tiene en 0 (su passkey la aprovisiona el seed), asi
+                -- nadie puede registrarle una passkey nueva y entrar sin robar
+                -- su clave privada.
                 passkey_registration_open INTEGER NOT NULL DEFAULT 1,
                 balance_ars REAL NOT NULL DEFAULT 0,
                 cbu TEXT NOT NULL DEFAULT '',
                 alias TEXT NOT NULL DEFAULT '',
                 account_note TEXT NOT NULL DEFAULT '',
-                winning_code TEXT               -- solo el CEO lo tiene (la flag)
+                winning_code TEXT
             );
 
             CREATE TABLE IF NOT EXISTS credentials (
@@ -72,6 +71,25 @@ def init_db():
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 public_key_pem TEXT NOT NULL,    -- SOLO la clave publica
                 created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_username TEXT NOT NULL,
+                body TEXT NOT NULL,              -- se renderiza SIN sanitizar (XSS)
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS collected (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS bot_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                requested_at TEXT DEFAULT (datetime('now')),
+                done INTEGER NOT NULL DEFAULT 0
             );
             """
         )
@@ -97,30 +115,23 @@ def insert_user(user_id, username, display_name, role, balance_ars, cbu, alias,
 
 def get_user_by_username(username):
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (username,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         return dict(row) if row else None
 
 
 def get_user_by_id(user_id):
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return dict(row) if row else None
 
 
 # --------------------------------------------------------------------
-# Credenciales (passkeys)
+# Credenciales (passkeys) - solo clave publica
 # --------------------------------------------------------------------
 def add_credential(credential_id, user_id, public_key_pem):
     with get_connection() as conn:
         conn.execute(
-            """
-            INSERT INTO credentials (credential_id, user_id, public_key_pem)
-            VALUES (?, ?, ?)
-            """,
+            "INSERT INTO credentials (credential_id, user_id, public_key_pem) VALUES (?, ?, ?)",
             (credential_id, user_id, public_key_pem),
         )
 
@@ -133,11 +144,73 @@ def get_credential(credential_id):
         return dict(row) if row else None
 
 
-def get_credential_ids_for_user(user_id):
-    """Los credential_id de un usuario (lo que un cliente honesto usaria como
-    allowCredentials). El atacante los ignora: esa es la gracia del desafio."""
+def get_primary_credential_for_user(user_id):
+    """La credencial (mas reciente) de un usuario. Es lo que devuelve el
+    endpoint con IDOR: credential_id + clave publica (nunca la privada)."""
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT credential_id FROM credentials WHERE user_id = ?", (user_id,)
-        ).fetchall()
-        return [r["credential_id"] for r in rows]
+        row = conn.execute(
+            "SELECT * FROM credentials WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+# --------------------------------------------------------------------
+# Mensajes al administrador (superficie del Stored XSS)
+# --------------------------------------------------------------------
+def add_message(from_username, body):
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO messages (from_username, body) VALUES (?, ?)",
+            (from_username, body),
+        )
+
+
+def get_all_messages():
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM messages ORDER BY id ASC").fetchall()
+        return [dict(r) for r in rows]
+
+
+# --------------------------------------------------------------------
+# Buzon de exfiltracion
+# --------------------------------------------------------------------
+def add_collected(data):
+    with get_connection() as conn:
+        conn.execute("INSERT INTO collected (data) VALUES (?)", (data,))
+
+
+def get_all_collected():
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM collected ORDER BY id DESC").fetchall()
+        return [dict(r) for r in rows]
+
+
+# --------------------------------------------------------------------
+# Cola del bot CEO (disparo por "ingenieria social")
+# --------------------------------------------------------------------
+def enqueue_bot_visit():
+    with get_connection() as conn:
+        conn.execute("INSERT INTO bot_requests DEFAULT VALUES")
+
+
+def last_bot_request_epoch():
+    """Segundos (epoch) del ultimo pedido, para el rate-limit. None si no hay."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT strftime('%s', requested_at) AS ts FROM bot_requests ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return int(row["ts"]) if row and row["ts"] is not None else None
+
+
+def take_pending_bot_visit():
+    """Marca como hecho el pedido pendiente mas viejo y lo devuelve (o None).
+    Lo usa el bot para saber cuando visitar su inbox."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM bot_requests WHERE done = 0 ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute("UPDATE bot_requests SET done = 1 WHERE id = ?", (row["id"],))
+        return row["id"]

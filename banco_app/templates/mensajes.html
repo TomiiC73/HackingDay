@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mensajes al administrador — HackerBank</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#c9a84c; }
+  body { background:#050507; color:#f5f5f7; font-family:'Inter',ui-sans-serif,system-ui,sans-serif; margin:0; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 20px 60px; }
+  nav { display:flex; align-items:center; justify-content:space-between; padding: 4px 0 24px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .brand { font-weight:800; letter-spacing:.15em; text-transform:uppercase; }
+  .brand span { color:var(--gold); }
+  nav a { color:#b9b9c2; text-decoration:none; font-size:.9rem; margin-left:18px; }
+  nav a:hover { color:#fff; }
+  h1 { font-size:1.5rem; margin: 26px 0 6px; }
+  .sub { color:#8a8a92; margin-bottom:22px; font-size:.95rem; }
+  .card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:20px; margin-bottom:20px; }
+  .card h2 { font-size:1.05rem; margin:0 0 4px; }
+  .card p.hint { color:#8a8a92; font-size:.85rem; margin:0 0 14px; }
+  textarea, input[type=text] { width:100%; box-sizing:border-box; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#f5f5f7; padding:11px 13px; font-family:inherit; font-size:.92rem; }
+  textarea { min-height:120px; resize:vertical; }
+  button { margin-top:12px; background:var(--gold); color:#111; border:none; border-radius:999px; padding:10px 20px; font-weight:700; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { opacity:.6; cursor:progress; }
+  .status { min-height:1.2rem; font-size:.85rem; margin-top:10px; }
+  .status[data-kind=ok]{ color:#6ee7a8; } .status[data-kind=error]{ color:#ff9a9c; } .status[data-kind=info]{ color:#8a8a92; }
+  code { color:var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">Hacker<span>Bank</span></div>
+    <div>
+      <span style="color:#8a8a92;font-size:.85rem;">Usuario logueado: <b style="color:#e8d38a">{{ user.username }}</b></span>
+      <a href="{{ url_for('dashboard') }}">Mi cuenta</a>
+      <a href="{{ url_for('collected_page') }}">Buzón</a>
+      <a href="{{ url_for('logout') }}">Salir</a>
+    </div>
+  </nav>
+
+  <h1>Mensajes al administrador</h1>
+  <p class="sub">Dejale un mensaje al administrador (el CEO). Él revisa esta bandeja cuando se lo piden.</p>
+
+  <div class="card">
+    <h2>Nuevo mensaje</h2>
+    <p class="hint">Se guarda y se le muestra al administrador tal cual lo escribís.</p>
+    <form id="msg-form">
+      <textarea id="msg-body" placeholder="Escribí tu mensaje para el administrador…"></textarea>
+      <button type="submit" id="msg-btn">Enviar mensaje</button>
+      <div class="status" id="msg-status" data-kind="info"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Pedir que el administrador revise su bandeja</h2>
+    <p class="hint">Ingresá la URL del sitio y avisale al administrador para que entre a leer. Disponible cada {{ cooldown }} segundos.</p>
+    <form id="social-form">
+      <input type="text" id="social-url" placeholder="http://localhost:5000" value="{{ request.url_root[:-1] }}">
+      <button type="submit" id="social-btn">Avisar al administrador</button>
+      <div class="status" id="social-status" data-kind="info"></div>
+    </form>
+  </div>
+</div>
+
+<!-- Deja disponibles signChallenge() y hbForge() en la consola de esta página. -->
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script>
+  function wire(formId, btnId, statusId, handler) {
+    const form = document.getElementById(formId), btn = document.getElementById(btnId), st = document.getElementById(statusId);
+    const setStatus = (m, k) => { st.textContent = m; st.dataset.kind = k || "info"; };
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault(); btn.disabled = true;
+      try { await handler(setStatus); } catch (err) { setStatus(err.message, "error"); }
+      btn.disabled = false;
+    });
+  }
+
+  wire("msg-form", "msg-btn", "msg-status", async (setStatus) => {
+    const body = document.getElementById("msg-body").value;
+    const r = await (await fetch("/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) })).json();
+    if (!r.ok) throw new Error(r.error || "No se pudo enviar.");
+    setStatus("Mensaje enviado. Ya está en la bandeja del administrador.", "ok");
+  });
+
+  wire("social-form", "social-btn", "social-status", async (setStatus) => {
+    setStatus("Avisando al administrador…", "info");
+    const r = await (await fetch("/social/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: document.getElementById("social-url").value }) })).json();
+    if (!r.ok) throw new Error(r.error || "No se pudo avisar.");
+    setStatus("Listo: el administrador va a revisar su bandeja en unos segundos.", "ok");
+  });
+</script>
+</body>
+</html>

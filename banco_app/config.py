@@ -9,12 +9,18 @@ real ni esta conectada a ningun sistema bancario.
 """
 import os
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # --- Flask ---
 # En un banco real esto seria un secreto fuerte y fuera del codigo; aca es
 # hardcodeado a proposito (entorno de laboratorio efimero que se resetea).
 FLASK_SECRET_KEY = os.environ.get("HACKERBANK_SECRET") or "lab-only-insecure-secret-hackertech-cba"
 
-DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hackerbank.db")
+DATABASE_PATH = os.path.join(_BASE_DIR, "hackerbank.db")
+
+# Archivo donde el seed deja la passkey del CEO (privada + credential_id) para
+# que la use el bot headless (bot.py). Nunca se expone por la web.
+CEO_PASSKEY_FILE = os.path.join(_BASE_DIR, "ceo_passkey.json")
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
@@ -25,12 +31,17 @@ SESSION_KEY_USER_ID = "authenticated_user_id"
 
 # --- Cripto del flujo passwordless ---
 # Curva P-256 (secp256r1): la MISMA que usa WebAuthn real. El servidor SOLO
-# guarda claves publicas (como FIDO2 real): la privada de cada credencial se
-# genera y vive del lado del cliente y nunca viaja. La vulnerabilidad del
-# desafio NO es una clave robable, sino que el servidor no valida el BINDING
-# entre la credencial firmante y el usuario que dice ser (ver app.py).
+# guarda claves publicas; la privada de cada passkey vive del lado del cliente
+# (en localStorage, para el laboratorio). Ese es justamente el pecado: en FIDO2
+# real la privada vive en hardware inextraible y JavaScript nunca la toca.
 CHALLENGE_BYTES = 24              # largo del challenge aleatorio (en bytes)
 CHALLENGE_TTL_SECONDS = 300       # ventana de validez del challenge emitido
+
+# --- Ingenieria social (disparo del bot CEO) ---
+SOCIAL_NOTIFY_COOLDOWN_SECONDS = 60   # 1 disparo por minuto, como en el Blog de Pepe
+
+# --- Usuario de practica (la cuenta del "atacante") ---
+PRACTICE_USERNAME = "t3ny"
 
 # --- Datos de presentacion del banco (landing) ---
 PUBLIC_USD_BUY = 1180.50

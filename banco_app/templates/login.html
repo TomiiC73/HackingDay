@@ -132,7 +132,7 @@
         <div class="field">
           <label for="username">Usuario</label>
           <input type="text" id="username" name="username" autocomplete="username"
-                 placeholder="alumno" value="alumno" required>
+                 placeholder="{{ practice_user }}" value="{{ practice_user }}" required>
         </div>
 
         <div class="flex flex-col items-center gap-4 pt-2">
@@ -154,9 +154,8 @@
       </form>
 
       <div class="mt-8 pt-6 border-t border-white/10 text-xs text-white/40 leading-relaxed">
-        <b class="text-white/60">Usuarios de laboratorio:</b> <code class="text-gold">alumno</code>
-        es la cuenta de práctica para entender el flujo. Entorno educativo del
-        Hacking Day Córdoba — datos ficticios.
+        <b class="text-white/60">Cuenta de práctica:</b> <code class="text-gold">{{ practice_user }}</code>.
+        Usala para entender el flujo. Entorno educativo del Hacking Day Córdoba — datos ficticios.
       </div>
     </div>
   </div>
