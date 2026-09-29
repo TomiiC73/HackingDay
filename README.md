@@ -1,4 +1,4 @@
-# HackerBank — "Passwordless de Cartón"
+# HackerBank 
 
 Desafío CTF **educativo y ético** del **Hacking Day de Córdoba** sobre
 autenticación **passwordless / FIDO2 / WebAuthn**. Banco ficticio; datos y
@@ -8,7 +8,7 @@ La app está en [`banco_app/`](banco_app/).
 
 ---
 
-## INSTALACIÓN Y PUESTA EN MARCHA
+## INSTALACIÓN Y EJECUCIÓN DEL PROYECTO
 
 ### Requisitos
 - **Docker** + Docker Compose (recomendado) y **Git**.
