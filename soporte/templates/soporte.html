@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HackerBank</title>
+<style>
+  :root { --gold:#c9a84c; }
+  body { background:#050507; color:#f5f5f7; font-family: ui-sans-serif, system-ui, sans-serif; margin:0; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 48px 20px; }
+  .brand { font-weight:800; letter-spacing:.15em; text-transform:uppercase; margin-bottom: 28px; }
+  .brand span { color:var(--gold); }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; }
+  .sub { color:#8a8a92; margin-bottom: 26px; font-size:.95rem; }
+  .card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:22px; }
+  .card h2 { font-size:1.05rem; margin:0 0 6px; }
+  .card p.hint { color:#8a8a92; font-size:.85rem; margin:0 0 16px; }
+  label { display:block; font-size:.82rem; color:#8a8a92; margin-bottom:6px; }
+  input[type=text] { width:100%; box-sizing:border-box; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#f5f5f7; padding:11px 13px; font-family:inherit; font-size:.92rem; }
+  input[type=text]:focus { outline:none; border-color:var(--gold); }
+  button { background:var(--gold); color:#111; border:none; border-radius:999px; padding:12px 22px; font-weight:700; cursor:pointer; font-size:.95rem; margin-top:14px; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { opacity:.6; cursor:progress; }
+  .status { min-height:1.2rem; font-size:.88rem; margin-top:14px; }
+  .status[data-kind=ok]{ color:#6ee7a8; } .status[data-kind=error]{ color:#ff9a9c; } .status[data-kind=info]{ color:#8a8a92; }
+  .foot { color:#55555c; font-size:.78rem; margin-top:30px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Hacker<span>Bank</span> · Soporte</div>
+  <h1>Portal interno de soporte</h1>
+  <p class="sub">¿Dejaste un mensaje para el administrador y querés que lo lea ahora? Pedile que revise su bandeja.</p>
+
+  <div class="card">
+    <h2>Pedir que el administrador revise su bandeja</h2>
+    <p class="hint">Ingresá la URL del sitio que el administrador (el CEO) debe abrir y avisale. Entrará en unos segundos. Disponible cada 60 segundos.</p>
+    <label for="challenge-url">URL a revisar</label>
+    <input type="text" id="challenge-url" value="http://localhost:5000/inbox" placeholder="http://localhost:5000/inbox">
+    <br>
+    <button type="button" id="notify-btn">Avisar al administrador</button>
+    <div class="status" id="notify-status" data-kind="info"></div>
+  </div>
+
+</div>
+
+<script>
+  const btn = document.getElementById("notify-btn");
+  const st = document.getElementById("notify-status");
+  const setStatus = (m, k) => { st.textContent = m; st.dataset.kind = k || "info"; };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    setStatus("Avisando al administrador…", "info");
+    try {
+      const url = document.getElementById("challenge-url").value.trim();
+      const r = await (await fetch("/notify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      })).json();
+      if (!r.ok) throw new Error(r.error || "No se pudo avisar.");
+      setStatus(r.message || "Listo.", "ok");
+    } catch (err) {
+      setStatus(err.message, "error");
+    }
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>

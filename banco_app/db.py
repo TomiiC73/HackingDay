@@ -89,7 +89,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS bot_requests (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 requested_at TEXT DEFAULT (datetime('now')),
-                done INTEGER NOT NULL DEFAULT 0
+                done INTEGER NOT NULL DEFAULT 0,
+                url TEXT                          -- URL que el agente debe visitar
             );
             """
         )
@@ -189,9 +190,9 @@ def get_all_collected():
 # --------------------------------------------------------------------
 # Cola del bot CEO (disparo por "ingenieria social")
 # --------------------------------------------------------------------
-def enqueue_bot_visit():
+def enqueue_bot_visit(url=None):
     with get_connection() as conn:
-        conn.execute("INSERT INTO bot_requests DEFAULT VALUES")
+        conn.execute("INSERT INTO bot_requests (url) VALUES (?)", (url,))
 
 
 def last_bot_request_epoch():
@@ -204,13 +205,13 @@ def last_bot_request_epoch():
 
 
 def take_pending_bot_visit():
-    """Marca como hecho el pedido pendiente mas viejo y lo devuelve (o None).
-    Lo usa el bot para saber cuando visitar su inbox."""
+    """Marca como hecho el pedido pendiente mas viejo y devuelve su dict
+    {id, url} (o None). Lo usa el agente para saber que URL visitar."""
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id FROM bot_requests WHERE done = 0 ORDER BY id ASC LIMIT 1"
+            "SELECT id, url FROM bot_requests WHERE done = 0 ORDER BY id ASC LIMIT 1"
         ).fetchone()
         if row is None:
             return None
         conn.execute("UPDATE bot_requests SET done = 1 WHERE id = ?", (row["id"],))
-        return row["id"]
+        return {"id": row["id"], "url": row["url"]}

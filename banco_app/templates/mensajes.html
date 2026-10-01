@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mensajes al administrador — HackerBank</title>
+<title>HackerBank</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root { --gold:#c9a84c; }
@@ -27,6 +27,7 @@
   .status { min-height:1.2rem; font-size:.85rem; margin-top:10px; }
   .status[data-kind=ok]{ color:#6ee7a8; } .status[data-kind=error]{ color:#ff9a9c; } .status[data-kind=info]{ color:#8a8a92; }
   code { color:var(--gold); }
+  .preview { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:11px 13px; margin-bottom:10px; word-break:break-word; }
 </style>
 </head>
 <body>
@@ -55,13 +56,9 @@
   </div>
 
   <div class="card">
-    <h2>Pedir que el administrador revise su bandeja</h2>
-    <p class="hint">Ingresá la URL del sitio y avisale al administrador para que entre a leer. Disponible cada {{ cooldown }} segundos.</p>
-    <form id="social-form">
-      <input type="text" id="social-url" placeholder="http://localhost:5000" value="{{ request.url_root[:-1] }}">
-      <button type="submit" id="social-btn">Avisar al administrador</button>
-      <div class="status" id="social-status" data-kind="info"></div>
-    </form>
+    <h2>Vista previa</h2>
+    <p class="hint">Así se verá tu mensaje.</p>
+    <div class="preview" id="msg-preview"></div>
   </div>
 </div>
 
@@ -78,18 +75,19 @@
     });
   }
 
+  // Vista previa en tiempo real: lo que escribís se renderiza tal cual (sin
+  // escapar HTML) a medida que tipeás, igual que lo verá el administrador.
+  const msgBody = document.getElementById("msg-body");
+  const msgPreview = document.getElementById("msg-preview");
+  const renderPreview = () => { msgPreview.innerHTML = msgBody.value; };
+  msgBody.addEventListener("input", renderPreview);
+  renderPreview();
+
   wire("msg-form", "msg-btn", "msg-status", async (setStatus) => {
-    const body = document.getElementById("msg-body").value;
+    const body = msgBody.value;
     const r = await (await fetch("/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) })).json();
     if (!r.ok) throw new Error(r.error || "No se pudo enviar.");
-    setStatus("Mensaje enviado. Ya está en la bandeja del administrador.", "ok");
-  });
-
-  wire("social-form", "social-btn", "social-status", async (setStatus) => {
-    setStatus("Avisando al administrador…", "info");
-    const r = await (await fetch("/social/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: document.getElementById("social-url").value }) })).json();
-    if (!r.ok) throw new Error(r.error || "No se pudo avisar.");
-    setStatus("Listo: el administrador va a revisar su bandeja en unos segundos.", "ok");
+    setStatus("Mensaje enviado.", "ok");
   });
 </script>
 </body>

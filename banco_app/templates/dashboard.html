@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mi cuenta — HackerBank</title>
+<title>HackerBank</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -68,22 +68,9 @@
         Desafío resuelto — cuenta del CEO comprometida
       </div>
       <h2 class="text-2xl font-extrabold mb-2">Código ganador</h2>
-      <p class="text-white/55 text-sm mb-5 max-w-2xl">
-        Entraste como <b class="text-white/80">{{ user.display_name }}</b> con
-        la clave privada que le robaste por XSS. Copiá este código como
-        comprobante de que completaste el desafío:
-      </p>
-      <div class="inline-flex items-center gap-3 rounded-xl bg-black/50 border border-gold/30 px-5 py-3">
+      <div class="inline-flex items-center gap-3 rounded-xl bg-black/50 border border-gold/30 px-5 py-3 mt-3">
         <span class="flag-code text-lg sm:text-xl text-gold">{{ winning_code }}</span>
       </div>
-    </section>
-    {% else %}
-    <!-- Nota para la cuenta de práctica -->
-    <section class="mb-10 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-sm text-white/55 leading-relaxed">
-      Esta es la <b class="text-white/80">cuenta de práctica</b>. Usala para
-      entender el flujo passwordless (challenge → firma → verify). Tu objetivo
-      en el desafío es conseguir acceder a la cuenta del <b class="text-white/80">CEO</b>
-      y leer el código ganador que aparece ahí.
     </section>
     {% endif %}
 
@@ -128,45 +115,8 @@
       </div>
     </div>
 
-    {% if is_ceo %}
-    <!-- ================== Pantalla comparativa: trucho vs FIDO2 real ================== -->
-    <section class="mb-4">
-      <div class="text-gold text-sm tracking-[0.25em] uppercase mb-3">Lo que aprendiste</div>
-      <h2 class="text-3xl font-extrabold leading-tight mb-4">Por qué esto no pasaría con FIDO2 real</h2>
-      <p class="text-white/55 leading-relaxed max-w-3xl mb-8">
-        Lo que hizo posible el ataque fue que la clave privada del CEO estaba en
-        <b class="text-white/80">localStorage</b>, accesible por JavaScript: por
-        eso un XSS pudo robarla. En FIDO2/WebAuthn real la clave vive en el
-        <b class="text-white/80">TPM/Secure Enclave</b> y JavaScript nunca puede
-        leerla — el mismo XSS no robaría absolutamente nada.
-      </p>
-
-      <div class="glass rounded-3xl overflow-hidden">
-        <div class="grid grid-cols-2 text-sm">
-          <div class="px-6 py-4 font-bold text-red-300 border-b border-white/10 bg-red-500/5">Lo que rompiste (FIDO2 de cartón)</div>
-          <div class="px-6 py-4 font-bold text-emerald-300 border-b border-white/10 bg-emerald-500/5">Cómo lo previene FIDO2 real</div>
-
-          {% set rows = [
-            ('Robaste la clave privada del CEO con un XSS', 'La clave vive en el TPM: JavaScript nunca puede leerla'),
-            ('La clave estaba en localStorage, al alcance de JS', 'En FIDO2 la clave nunca sale del hardware ni toca el navegador'),
-            ('Un mensaje malicioso ejecutó código en el CEO', 'Aunque haya XSS, del lado del cliente no hay clave privada que robar'),
-            ('Filtraste el credential_id con un IDOR', 'El credential_id no es secreto, pero sin la privada (inrobable) no sirve'),
-            ('Firmaste el challenge con la clave robada', 'Firmar exige la clave en hardware + verificación del usuario (biometría)'),
-          ] %}
-          {% for bad, good in rows %}
-          <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ bad }}</div>
-          <div class="px-6 py-4 text-white/70 border-b border-white/5 {{ 'border-b-0' if loop.last }}">{{ good }}</div>
-          {% endfor %}
-        </div>
-      </div>
-    </section>
-    {% endif %}
   </main>
 
-  {% if is_ceo %}
-  {# Diagrama de secuencia del flujo FIDO2 real, como cierre pedagogico. #}
-  {% include "_fido2_diagram.html" %}
-  {% endif %}
 </div>
 
 </body>

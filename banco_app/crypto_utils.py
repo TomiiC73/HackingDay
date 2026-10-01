@@ -12,6 +12,12 @@ localStorage y es lo que el XSS termina robando.
 
 Formato de firma en el "cable": raw r||s de 64 bytes (32 + 32) en hex (formato
 WebCrypto). El servidor lo convierte a DER para verificar con `cryptography`.
+
+En la ceremonia estilo WebAuthn/Windows Hello, lo que se firma son los bytes del
+`clientDataJSON` (lo que arma el navegador). Simplificacion consciente para que
+el CTF sea legible: NO se concatena `authenticatorData` como en WebAuthn real;
+ese campo viaja pero es decorativo. Lo que importa (y se mantiene honesto) es que
+la firma se verifica contra la clave PUBLICA guardada para la credencial.
 """
 import base64
 import secrets
@@ -54,13 +60,23 @@ def _raw_sig_to_der(signature_raw: bytes) -> bytes:
     return encode_dss_signature(r, s)
 
 
-def verify_signature(pub_pem: str, challenge: str, signature_hex: str) -> bool:
+def verify_signature_bytes(pub_pem: str, message: bytes, signature_hex: str) -> bool:
     """True si `signature_hex` (hex de raw r||s, 64 bytes) es una firma
-    ECDSA-SHA256 valida del `challenge` para la clave publica `pub_pem`."""
+    ECDSA-SHA256 valida de `message` (bytes) para la clave publica `pub_pem`.
+
+    En el flujo Windows Hello simulado, `message` son los bytes del
+    `clientDataJSON` que el navegador firmo con la privada guardada en
+    localStorage (robable por XSS). La verificacion sigue siendo HONESTA: solo
+    pasa si la firma corresponde a la publica de esa credencial."""
     try:
         public_key = serialization.load_pem_public_key(pub_pem.encode("ascii"))
         signature_der = _raw_sig_to_der(bytes.fromhex(signature_hex))
-        public_key.verify(signature_der, challenge.encode("utf-8"), ec.ECDSA(hashes.SHA256()))
+        public_key.verify(signature_der, message, ec.ECDSA(hashes.SHA256()))
         return True
     except (InvalidSignature, ValueError, TypeError):
         return False
+
+
+def verify_signature(pub_pem: str, challenge: str, signature_hex: str) -> bool:
+    """Compat: firma ECDSA-SHA256 sobre el `challenge` como texto UTF-8."""
+    return verify_signature_bytes(pub_pem, challenge.encode("utf-8"), signature_hex)

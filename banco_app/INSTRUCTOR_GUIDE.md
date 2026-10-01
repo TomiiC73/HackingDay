@@ -17,36 +17,53 @@ Enclave y JS nunca la toca — el mismo XSS no roba nada.
 
 ## 2. Diseño y vulnerabilidades
 
-Como FIDO2 real, el servidor SOLO guarda claves públicas (tabla `credentials`).
-La clave privada de cada passkey vive en `localStorage` del cliente. Endpoints:
+Login estilo **Windows Hello / WebAuthn** (ceremonia `options → assert`). Como
+FIDO2 real, el servidor SOLO guarda claves públicas (tabla `credentials`); la
+clave privada de cada passkey vive en `localStorage` del cliente. Endpoints:
 
 | Endpoint | Qué hace |
 |---|---|
 | `POST /auth/register` | Registra una passkey (solo la pública). Cerrado para el CEO. |
-| `POST /auth/challenge` | `{username}` → `{user_id, challenge}`. |
+| `POST /auth/hello/options` | `{username}` → `{user_id, challenge, rpId, userVerification}`. |
 | `GET /auth/keys/<user_id>` | Credencial (credential_id + pública) de cualquiera. **IDOR**. |
-| `POST /auth/verify` | `{username, credential_id, challenge, signature}` → sesión. Honesto (valida binding + firma). |
-| `POST /messages` / `GET /inbox` | Deja / muestra "mensajes al administrador". `/inbox` no sanitiza → **Stored XSS**. |
-| `POST /social/notify` | Dispara al bot CEO a leer su bandeja (1/min). |
+| `POST /auth/hello/assert` | `{username, id, type, response:{clientDataJSON, authenticatorData, signature}}` → sesión. Honesto (valida binding + firma). |
+| `POST /messages` / `GET /inbox` | Deja / muestra "mensajes al administrador". `/inbox` (y la vista previa de `/mensajes`) no sanitizan → **Stored XSS**. |
+| `POST /social/notify` | Encola la revisión del agente CEO (1/min). Lo dispara el portal de soporte (`:5001`). |
 | `GET /collect` / `GET /collected` | Buzón donde el payload exfiltra / donde se lee. |
+| `POST /internal/provision-ceo` | **Interno** (token `X-Agent-Token`): el agente aprovisiona la pública del CEO. One-shot. |
+| `GET /internal/agent/pending` | **Interno** (token): el agente consulta si hay pedido de visita. |
 
 Buscar `VULN` en `app.py`:
 - **VULN-1 (IDOR):** `/auth/keys/<id>` sin autorización → filtra el credential_id del CEO.
-- **VULN-2 (Stored XSS):** `/inbox` renderiza los mensajes con `| safe`.
+- **VULN-2 (Stored XSS):** `/inbox` y la vista previa de `/mensajes` renderizan con `| safe`.
+- **VULN-3 (challenge no vinculado):** `/auth/hello/assert` lee el challenge del
+  `clientDataJSON` que manda el cliente y NO lo valida contra el que emitió
+  `options` (ni chequea `origin`) → replay / challenge elegido.
 
-El bot CEO (`bot.py`, Playwright headless) tiene la clave privada del CEO en su
-`localStorage` pero **no una sesión bancaria**: por eso el XSS solo puede robar
-la clave, no leer la flag directo. `/auth/verify` NO tiene bug de lógica.
+**Teatro de Windows Hello:** `script.js` invoca el PIN real del SO con
+`navigator.credentials.create()` y **descarta** el resultado; la auth real corre
+con la clave de software de `localStorage`. El factor fuerte no protege nada.
+
+El agente CEO (`agente/agent.py`, Playwright headless, **contenedor aparte**)
+tiene la clave privada del CEO en su `localStorage` pero **no una sesión
+bancaria**: por eso el XSS solo puede robar la clave, no leer la flag directo.
+`/auth/hello/assert` mantiene honesto lo importante (binding + firma): el pecado
+es que la privada era robable (y VULN-3). El agente **genera** la passkey del CEO
+y aprovisiona solo la pública por `/internal/provision-ceo` (con token y
+one-shot): el banco nunca ve la privada, y un token filtrado tras el arranque no
+sirve para registrarle una passkey nueva al CEO.
 
 ## 3. Solución paso a paso
 
 Usuarios: `t3ny` (práctica), `ceo` (id `7013`, objetivo), señuelos.
 
 ### Capa 1 — Reconocer el flujo (Burp)
-Login como `t3ny` en `/login`. En Burp: `POST /auth/register` (registra la
-passkey, solo la pública), `POST /auth/challenge` (→ `user_id`), `GET
-/auth/keys/<user_id>` (→ tu credential_id), `POST /auth/verify`. La clave privada
-nunca viaja (vive en `localStorage`).
+Login como `t3ny` en `/login` con **Windows Hello** (si estás en Windows, aparece
+el PIN real — es teatro, su credencial se descarta). En Burp: `POST
+/auth/register` (registra la passkey, solo la pública), `POST /auth/hello/options`
+(→ `user_id`, `challenge`), `GET /auth/keys/<user_id>` (→ tu credential_id), `POST
+/auth/hello/assert` (manda `clientDataJSON` + firma). La clave privada nunca viaja
+(vive en `localStorage`: `localStorage.getItem("hb_privkey_t3ny")`).
 
 ### Capa 2 — IDOR: el credential_id del CEO
 En el Repeater, variar `GET /auth/keys/<id>` (`7013`, `7025`, `7031`, `7058`).
@@ -70,8 +87,11 @@ window.addEventListener("load", function () {
 </script>
 ```
 
-2. Usar la **ingeniería social** (botón "Avisar al administrador") → el bot CEO
-   visita `/inbox` y ejecuta el payload.
+   Antes del payload real conviene mandar `<b>hola</b>`: la tarjeta **"Vista
+   previa — así lo verá el administrador"** lo muestra en negrita → confirma el XSS.
+2. Desde el **portal de soporte** (`http://localhost:5001`, botón "Avisar al
+   administrador") → el agente CEO visita `/inbox` y ejecuta el payload. (También
+   entra solo cada ~45 s.)
 3. Leer la clave privada del CEO en **`/collected`**.
 
 ### Capa 4 — Firmar y entrar (consola F12)
@@ -79,16 +99,18 @@ Con el credential_id (Capa 2) y la clave (Capa 3). En la consola de una página
 que cargue `script.js` (p.ej. `/collected` o `/login`):
 
 ```js
-hbForge("ceo", "<credential_id del IDOR>", "<clave privada del buzón>")
+helloForge("ceo", "<credential_id del IDOR>", "<clave privada del buzón>")
 ```
 
-`hbForge` pide un challenge fresco del CEO, lo firma (ECDSA-SHA256, raw r‖s) y
-hace `verify` → entra como CEO → **código ganador** + pantalla comparativa.
+`helloForge` pide options del CEO, arma el `clientDataJSON`, lo firma
+(ECDSA-SHA256, raw r‖s) y hace el `assert` → entra como CEO → **código ganador** +
+pantalla comparativa.
 
 ### Script de resolución
-[`solve.py`](solve.py) hace todo con `requests` (el bot del server ejecuta el
-XSS): login `t3ny` → deja el payload → dispara la ingeniería social → lee la
-clave en `/collected` → credential_id por IDOR → firma y entra. Imprime la flag.
+[`solve.py`](solve.py) hace todo con `requests` (el agente ejecuta el XSS): login
+`t3ny` → deja el payload → pide la revisión (`/social/notify`) → lee la clave en
+`/collected` → credential_id por IDOR → firma el `clientDataJSON` y hace el
+`assert`. Imprime la flag.
 
 ## 4. El código ganador (flag)
 
@@ -114,6 +136,7 @@ se quiere una flag distinta por evento.
 
 | Lo que rompiste (FIDO2 de cartón) | Cómo lo previene FIDO2 real |
 |---|---|
+| El PIN de Windows Hello no te frenó | El PIN acá era teatro; en Windows Hello real desbloquea la clave del TPM, que firma adentro |
 | Robaste la clave privada del CEO con un XSS | La clave vive en el TPM: JavaScript nunca puede leerla |
 | La clave estaba en localStorage, al alcance de JS | En FIDO2 la clave nunca sale del hardware ni toca el navegador |
 | Un mensaje malicioso ejecutó código en el CEO | Aunque haya XSS, del lado del cliente no hay clave privada que robar |
@@ -139,18 +162,25 @@ Flag correcta (`f27ad11c21afef4f4c54a3930698f616`) como condición necesaria.
   Capa 4: 15-25 min. **Total: ~70-125 min.**
 
 ### Reset entre participantes
-`docker compose restart` (recrea la base, reaprovisiona la passkey del CEO y
-reinicia el bot). Nota: las passkeys del navegador quedan en `localStorage`; para
-empezar de cero en el mismo navegador, limpiarlo.
+`docker compose restart` (desde la raíz). Reinicia **los tres servicios juntos**:
+el banco recrea la base (el CEO vuelve a arrancar sin credencial) y el agente
+regenera su passkey y la reaprovisiona — así la privada del agente coincide con
+la pública del banco. Nota: las passkeys del navegador del alumno quedan en
+`localStorage`; para empezar de cero en el mismo navegador, limpiarlo.
+
+> Importante: reiniciar **solo** el contenedor del agente (sin el banco) deja al
+> banco con la credencial vieja del CEO y al agente con una privada nueva que no
+> coincide (one-shot). Si pasa, reseteá todo con `docker compose restart`.
 
 ### Problemas comunes
 
 | Problema | Causa | Solución |
 |---|---|---|
-| La clave no llega al buzón | El bot CEO no corrió, o el payload esperaba mal el `load` | Verificar que el contenedor esté up (el bot va adentro); usar el payload de la guía. |
+| La clave no llega al buzón | El agente no corrió / no aprovisionó, o el payload esperaba mal el `load` | Ver `docker compose logs agente` (debe decir "PUBLICA aprovisionada"); usar el payload de la guía. |
 | `403` al loguearse como `ceo` en la web | Registro de passkeys cerrado para el CEO (a propósito) | No es un bug: hay que robar su clave, no registrar una nueva. |
-| "Firma inválida" en Python | Se mandó la firma en DER en vez de raw r‖s | Convertir DER → r‖s (64 bytes), como en `solve.py`. |
-| El build tarda / pesa | Baja Chromium (imagen de Playwright) | Es esperado la primera vez; después queda cacheado. |
+| `assert` del CEO da 401 (binding/firma) | credential_id que no es del CEO, o la privada no coincide con la pública aprovisionada | Usar el credential_id del IDOR (`7013`) y la clave de `/collected`; si el agente se reinició solo, `docker compose restart`. |
+| "Firma inválida" en Python | Se firmó algo distinto del `clientDataJSON`, o DER en vez de raw r‖s | Firmar los bytes del `clientDataJSON` y convertir DER → r‖s (64 bytes), como en `solve.py`. |
+| El build tarda / pesa | El agente baja Chromium (imagen de Playwright) | Es esperado la primera vez; después queda cacheado. |
 
 ### Recordatorio ético
 Estas técnicas (IDOR, análisis de JS, XSS, forja de firmas) se practican acá

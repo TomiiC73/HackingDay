@@ -2,23 +2,23 @@
 Siembra de datos del CTF passwordless (HackerBank / Hacking Day Cordoba).
 
 Borra y recrea la base en CADA corrida. Como en FIDO2 real, el servidor NO
-guarda claves privadas: a cada cuenta (menos la de practica) se le aprovisiona
-una passkey guardando solo su clave PUBLICA.
+guarda claves privadas: a cada cuenta se le aprovisiona una passkey guardando
+solo su clave PUBLICA.
 
 Usuarios:
   - t3ny     -> cuenta de practica (el "atacante"). Registra su passkey al
                 loguearse (el navegador genera el par); arranca sin credencial.
-  - ceo      -> tiene el CODIGO GANADOR (flag). Passkey aprovisionada; su clave
-                privada se guarda en CEO_PASSKEY_FILE para el bot headless
-                (bot.py), que la carga en su localStorage. Registro cerrado.
-  - senuelos -> con passkey (para que el IDOR de /auth/keys tenga a quien
-                enumerar), registro abierto.
+  - ceo      -> tiene el CODIGO GANADOR (flag). Arranca SIN credencial y con el
+                registro cerrado: su passkey la genera el contenedor del agente
+                (agente/agent.py), que guarda la privada en SU localStorage y
+                aprovisiona solo la PUBLICA al banco por un endpoint interno. El
+                banco nunca ve la privada del CEO.
+  - senuelos -> con passkey sembrada (para que el IDOR de /auth/keys tenga a
+                quien enumerar), registro abierto.
 
 Uso:
     python seed.py
 """
-import json
-
 import config
 import crypto_utils
 import db
@@ -55,19 +55,19 @@ def seed():
             cbu=cbu, alias=alias, account_note=account_note, winning_code=winning_code,
         )
         extra = ""
-        if role in ("ceo", "senuelo"):
+        if role == "senuelo":
+            # Senuelos: passkey sembrada (solo la publica) para que el IDOR de
+            # /auth/keys tenga a quien enumerar junto al CEO.
             priv_b64, pub_pem = crypto_utils.generate_credential()
             cred_id = crypto_utils.generate_credential_id()
             db.add_credential(cred_id, user_id, pub_pem)
-            if role == "ceo":
-                # La privada del CEO va a un archivo para el bot headless.
-                # Nunca se expone por la web (el servidor solo guarda la publica).
-                with open(config.CEO_PASSKEY_FILE, "w", encoding="ascii") as f:
-                    json.dump({"credential_id": cred_id, "private_key_b64": priv_b64,
-                               "username": "ceo"}, f)
-                extra = "  [passkey aprovisionada -> ceo_passkey.json para el bot]"
-            else:
-                extra = "  [passkey aprovisionada]"
+            extra = "  [passkey aprovisionada]"
+        elif role == "ceo":
+            # El CEO arranca SIN credencial: la aprovisiona el agente al arrancar
+            # (genera el par en su navegador, guarda la privada en su localStorage
+            # y manda solo la publica por /internal/provision-ceo). Registro
+            # cerrado para que nadie le registre una passkey nueva por la web.
+            extra = "  [sin credencial -> la aprovisiona el agente]"
         print(f"  [{role:8}] id={user_id}  {username:10}  ({display_name}){extra}")
     print()
     print(f"Cuenta de practica: '{config.PRACTICE_USERNAME}'. Flag del CEO: {CEO_WINNING_CODE}")

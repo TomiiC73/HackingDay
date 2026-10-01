@@ -1,0 +1,54 @@
+# CTF "Passwordless de Carton" (HackerBank / Hacking Day Cordoba).
+# Tres servicios. Correr desde la raiz del repo con:
+#   docker compose up -d --build
+#
+#   banco_app  :5000  -> el banco (login Windows Hello, IDOR, inbox/XSS, collected)
+#   agente            -> navegador del CEO (victima del XSS); sin puerto expuesto
+#   soporte    :5001  -> portal aparte con el boton para avisar al administrador
+#
+# AGENT_TOKEN se comparte SOLO entre banco_app y agente (endpoints internos).
+# Sin volumenes persistentes a proposito: cada "up"/"restart" deja la base limpia
+# y claves nuevas; banco y agente se reinician juntos, asi la passkey del CEO que
+# genera el agente coincide con la publica que guarda el banco.
+services:
+  banco_app:
+    build:
+      context: ./banco_app
+    container_name: hackerbank-ctf
+    ports:
+      - "5000:5000"
+    environment:
+      - AGENT_TOKEN=${AGENT_TOKEN:-lab-only-agent-token-hackertech-cba}
+      - SOPORTE_PUBLIC_URL=${SOPORTE_PUBLIC_URL:-http://localhost:5001}
+    restart: unless-stopped
+
+  agente:
+    build:
+      context: ./agente
+    container_name: hackerbank-agente
+    depends_on:
+      - banco_app
+    # Comparte el namespace de red de banco_app (en vez de su propia red +
+    # DNS "banco_app") para que, desde el navegador del agente, el banco se
+    # vea como "http://localhost:5000". Chromium solo expone WebCrypto
+    # (`crypto.subtle`) en "contextos seguros" (HTTPS o localhost/127.0.0.1);
+    # por HTTP contra un hostname Docker normal ("banco_app") lo trata como
+    # inseguro y la generacion de la passkey del CEO falla.
+    network_mode: "service:banco_app"
+    environment:
+      - BANK_URL=http://localhost:5000
+      - AGENT_TOKEN=${AGENT_TOKEN:-lab-only-agent-token-hackertech-cba}
+      - AGENT_PERIODIC_SECONDS=${AGENT_PERIODIC_SECONDS:-45}
+    restart: unless-stopped
+
+  soporte:
+    build:
+      context: ./soporte
+    container_name: hackerbank-soporte
+    depends_on:
+      - banco_app
+    ports:
+      - "5001:5001"
+    environment:
+      - BANK_URL=http://banco_app:5000
+    restart: unless-stopped

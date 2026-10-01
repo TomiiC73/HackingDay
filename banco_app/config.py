@@ -18,9 +18,23 @@ FLASK_SECRET_KEY = os.environ.get("HACKERBANK_SECRET") or "lab-only-insecure-sec
 
 DATABASE_PATH = os.path.join(_BASE_DIR, "hackerbank.db")
 
-# Archivo donde el seed deja la passkey del CEO (privada + credential_id) para
-# que la use el bot headless (bot.py). Nunca se expone por la web.
-CEO_PASSKEY_FILE = os.path.join(_BASE_DIR, "ceo_passkey.json")
+# Token compartido SOLO con el contenedor del agente (agente/agent.py). Protege
+# los endpoints internos del banco: el de aprovisionamiento de la passkey del
+# CEO y el de la cola de visitas del agente. En un lab efimero es un valor fijo;
+# en produccion seria un secreto fuerte e inyectado por entorno.
+# IMPORTANTE (seguridad del CTF): si este token se filtra ANTES de que el agente
+# aprovisione al CEO, alguien podria registrarle una passkey propia y entrar sin
+# robar nada. Por eso el endpoint de provision es ademas one-shot (rechaza si el
+# CEO ya tiene credencial).
+AGENT_TOKEN = os.environ.get("AGENT_TOKEN") or "lab-only-agent-token-hackertech-cba"
+
+# Cada cuanto el agente CEO revisa su bandeja aunque nadie lo "invite" (seg).
+AGENT_PERIODIC_SECONDS = int(os.environ.get("AGENT_PERIODIC_SECONDS") or "45")
+
+# URL publica del portal de soporte (otro puerto/sitio) donde esta el boton para
+# "pedir que el administrador revise su bandeja". Se muestra como pista en
+# /mensajes. Es la URL vista desde el navegador del alumno.
+SOPORTE_PUBLIC_URL = os.environ.get("SOPORTE_PUBLIC_URL") or "http://localhost:5001"
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"

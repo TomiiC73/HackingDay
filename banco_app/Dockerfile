@@ -1,7 +1,7 @@
 # HackerBank - CTF "Passwordless de Carton" (Hacking Day Cordoba).
-# Base: imagen oficial de Playwright (trae Python + Chromium + sus dependencias
-# de sistema ya instaladas), para el bot CEO headless (bot.py).
-FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
+# El banco ya no necesita Chromium (el agente CEO vive en su propio contenedor),
+# asi que usa una base liviana de Python.
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -12,6 +12,6 @@ COPY . .
 
 EXPOSE 5000
 
-# Arranque: sembrar la base (crea ceo_passkey.json para el bot), levantar la app
-# y, en paralelo, el bot CEO que revisa su inbox cuando lo disparan.
-CMD ["sh", "-c", "python seed.py && (python bot.py &) && python app.py"]
+# Arranque: sembrar la base (CEO sin credencial; la aprovisiona el agente) y
+# levantar la app. El bot/agente ya NO corre aca.
+CMD ["sh", "-c", "python seed.py && python app.py"]
