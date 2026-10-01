@@ -1,11 +1,5 @@
 """
-Configuracion centralizada del CTF "Passwordless de Carton" (HackerBank).
-
-IMPORTANTE - ENTORNO EDUCATIVO: este es un desafio de ciberseguridad (CTF)
-para el Hacking Day de Cordoba. La app imita un login passwordless/FIDO2 pero
-esta ROTA A PROPOSITO para ensenar, por contraste, como funciona FIDO2 real.
-Todos los datos (CEO, cuentas, codigo ganador) son ficticios. No procesa dinero
-real ni esta conectada a ningun sistema bancario.
+Configuracion centralizada de HackerBank.
 """
 import os
 

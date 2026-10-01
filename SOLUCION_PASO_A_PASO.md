@@ -1,7 +1,7 @@
 # Solución paso a paso — CTF "Passwordless de Cartón" (HackerBank)
 
 Resolución desde el login. Objetivo: entrar a la cuenta del **CEO** y leer el
-código ganador. Entorno educativo del Hacking Day Córdoba; datos ficticios.
+código ganador.
 
 ## La idea en una frase
 

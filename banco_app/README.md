@@ -1,11 +1,6 @@
 # HackerBank — CTF "Passwordless de Cartón"
 
-Desafío de ciberseguridad (CTF) **educativo y ético** para el **Hacking Day de
-Córdoba**, sobre autenticación **passwordless / FIDO2 / WebAuthn**.
-
-> ⚠️ **Entorno educativo.** HackerBank es un banco ficticio. No procesa dinero
-> real y todo (cuentas, CEO, "código ganador") es inventado. La app está **rota
-> a propósito** para atacarla y entender, por contraste, cómo funciona FIDO2 real.
+Desafío sobre autenticación **passwordless / FIDO2 / WebAuthn**.
 
 ## La idea
 
