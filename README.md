@@ -1,5 +1,61 @@
 # HackerBank — CTF
 
+## Cómo ejecutar el proyecto desde 0
+
+### Requisitos
+- **Docker Desktop** (con Docker Compose) corriendo.
+- **Git**.
+- *(Opcional, solo para validar con el script)* **Python 3** con `pip`.
+
+### 1. Clonar el repo
+```bash
+git clone https://github.com/TomiiC73/HackingDay.git
+cd HackingDay
+```
+
+### 2. Levantar los servicios
+Desde la **raíz del repo** (donde está `docker-compose.yml`):
+```bash
+docker compose up -d --build
+```
+La primera vez tarda, porque el contenedor del agente descarga Chromium.
+
+Levanta tres servicios:
+
+| Servicio    | Puerto | Qué es |
+|-------------|--------|--------|
+| `banco_app` | 5000   | El banco: login Windows Hello, IDOR, `/inbox` (XSS), `/collected`. |
+| `agente`    | —      | Navegador del CEO (Chromium headless). Genera su passkey y revisa `/inbox`. |
+| `soporte`   | 5001   | Portal aparte para pedir que el CEO revise su bandeja. |
+
+- Banco: **http://localhost:5000**
+- Portal de soporte: **http://localhost:5001**
+
+### 3. Verificar que arrancó bien
+```bash
+docker compose ps                    # los 3 en estado "Up"
+docker compose logs agente | tail -5 # debe decir "CEO listo (passkey en localStorage...)"
+```
+
+### 4. (Opcional) Validar el ataque completo
+```bash
+pip install requests cryptography
+python banco_app/solve.py            # imprime el código ganador
+```
+
+### Resetear entre intentos / participantes
+```bash
+docker compose restart               # recrea la base y la passkey del CEO
+```
+En el navegador, limpiá el `localStorage` (F12 → Console → `localStorage.clear()`) para empezar de cero.
+
+### Frenar todo
+```bash
+docker compose down
+```
+
+---
+
 ## ENUNCIADO
 
 HackerBank, una prestigiosa firma bancaria, presume de tener el login passwordless más fortalecido del mundo: "seguro como una passkey FIDO2, ni nosotros podríamos robar la llave de un cliente". Te dieron una cuenta de prueba para que lo pongas a prueba (usuario: `t3ny`, sin contraseña: entrás mediante un PIN generado con Windows Hello). ¿Pero será tan inquebrantable como dicen? Tu objetivo es loguearte como el CEO y llevarte el código que guarda en su cuenta.
