@@ -56,7 +56,7 @@ Con el credential_id (Capa 2) y la clave privada (Capa 3):
 
 ```json
 {"username":"ceo",
- "id":"<credential_id del CEO>",
+ "credential_id":"<credential_id del CEO>",
  "type":"public-key",
  "response":{
    "clientDataJSON":"<cdjB64 del paso B>",

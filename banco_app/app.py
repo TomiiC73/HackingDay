@@ -225,8 +225,8 @@ def auth_keys(username):
 @app.route("/auth/hello/assert", methods=["POST"])
 def auth_hello_assert():
     """Paso 2 de la ceremonia (como la assertion de WebAuthn/Windows Hello).
-    Recibe {username, id, type, response:{clientDataJSON, authenticatorData,
-    signature}}.
+    Recibe {username, credential_id, type, response:{clientDataJSON,
+    authenticatorData, signature}}.
 
     Para entrar como el CEO hace falta SU credential_id (IDOR, Capa 2) y firmar
     con SU clave privada (robada por XSS, Capa 3). El server mantiene HONESTO lo
@@ -235,7 +235,7 @@ def auth_hello_assert():
     privada era robable (y en VULN-3, abajo)."""
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
-    credential_id = (payload.get("id") or payload.get("credential_id") or "").strip()
+    credential_id = (payload.get("credential_id") or payload.get("id") or "").strip()
     response = payload.get("response") or {}
     client_data_b64 = response.get("clientDataJSON") or ""
     signature_hex = response.get("signature") or ""

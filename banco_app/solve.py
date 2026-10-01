@@ -80,7 +80,7 @@ def do_assert(s, username, cred_id, priv, challenge):
     cdj = client_data_json(challenge).encode("utf-8")
     body = {
         "username": username,
-        "id": cred_id,
+        "credential_id": cred_id,
         "type": "public-key",
         "response": {
             "clientDataJSON": b64url(cdj),

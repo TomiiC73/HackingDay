@@ -131,7 +131,7 @@ async function assertLogin(username, credentialId, privB64, challenge) {
   const signature = await window.signChallenge(privB64, clientDataJSON);
   const body = {
     username: username,
-    id: credentialId,
+    credential_id: credentialId,
     type: "public-key",
     response: {
       clientDataJSON: strToB64url(clientDataJSON),
@@ -192,10 +192,12 @@ async function helloLogin(username, onStatus) {
   // 3) RECONOCIMIENTO: el cliente consulta su credencial registrada por
   //    /auth/keys/<username>. Es parte legítima del flujo (así el alumno ve ESTE
   //    endpoint en Burp: es la superficie del IDOR de la Capa 2 — basta cambiar
-  //    el nombre a 'ceo'). OJO: su resultado NO decide con qué clave firmamos;
-  //    eso lo define la passkey LOCAL, para que privada y credential_id sean
-  //    siempre la misma pareja.
-  try { await fetch(`/auth/keys/${encodeURIComponent(username)}`); } catch (e) {}
+  //    el nombre a 'ceo'). Además lo usamos para DECIDIR sin asserts tentativos.
+  let serverCredId = null;
+  try {
+    const keys = await (await fetch(`/auth/keys/${encodeURIComponent(username)}`)).json();
+    if (keys.ok) serverCredId = keys.credential_id;
+  } catch (e) {}
 
   // 4) Mi passkey LOCAL (privada + su propio credential_id).
   let privB64 = null, credentialId = null;
@@ -204,21 +206,23 @@ async function helloLogin(username, onStatus) {
     credentialId = localStorage.getItem(credStorageKey(username));
   } catch (e) {}
 
-  // 5) Si tengo passkey local, intento entrar con ella.
-  if (privB64 && credentialId) {
+  // 5) Decisión SIN asserts especulativos (para mandar EXACTAMENTE un /assert):
+  //    uso la passkey local solo si el server la reconoce (su credencial actual
+  //    coincide con la mía); si no, registro una nueva. En cualquier caso, un
+  //    solo assert.
+  if (privB64 && credentialId && serverCredId && credentialId === serverCredId) {
     try { localStorage.setItem("hb_current_user", username); } catch (e) {}
-    const v = await assertLogin(username, credentialId, privB64, opt.challenge);
-    if (v.ok) return v.next;
-    // La passkey local quedó obsoleta (base reseteada, otra credencial, etc.):
-    // re-registro una nueva en vez de fallar.
+  } else {
+    const pk = await registerPasskey(username, onStatus);
+    privB64 = pk.privB64;
+    credentialId = pk.credentialId;
   }
 
-  // 6) Registrar una passkey nueva y entrar con ella (reusa el challenge de
-  //    options: el server no lo vincula — VULN-3 — así que sigue siendo válido).
-  const pk = await registerPasskey(username, onStatus);
-  const v2 = await assertLogin(username, pk.credentialId, pk.privB64, opt.challenge);
-  if (!v2.ok) throw new Error(v2.error || "No se pudo verificar la firma.");
-  return v2.next;
+  // 6) Un único assert (reusa el challenge de options; el server no lo vincula
+  //    — VULN-3 — así que sigue siendo válido).
+  const v = await assertLogin(username, credentialId, privB64, opt.challenge);
+  if (!v.ok) throw new Error(v.error || "No se pudo verificar la firma.");
+  return v.next;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -230,18 +234,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setStatus(message, kind) { statusBox.textContent = message; statusBox.dataset.kind = kind || "info"; }
 
+  // Evita logins concurrentes (doble clic / Enter repetido mientras una petición
+  // está en vuelo, p.ej. retenida por Burp): así se manda un solo /assert.
+  let busy = false;
   async function run() {
+    if (busy) return;
     const username = (usernameInput.value || "").trim().toLowerCase();
     if (!username) { setStatus("Ingresá tu usuario para continuar con Windows Hello.", "error"); return; }
+    busy = true;
     scanBtn.disabled = true;
     setStatus("Abriendo Windows Hello…", "info");
     try {
       const next = await helloLogin(username, setStatus);
       setStatus("Identidad verificada. Redirigiendo…", "ok");
-      window.location.href = next;
+      window.location.href = next;   // navega: dejamos busy=true a propósito
     } catch (err) {
       setStatus(err.message, "error");
       scanBtn.disabled = false;
+      busy = false;                  // permitir reintento solo tras error
     }
   }
   form.addEventListener("submit", (e) => { e.preventDefault(); run(); });
